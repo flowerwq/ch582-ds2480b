@@ -232,7 +232,7 @@ static bool convert_tempcap1()
 		if(fbCfg & 0x01){
 			Crange += CFB.Factor[i];
 		}
-		fbCfg >>= 1;
+        fbCfg >>= 1;
 	}
 	return (0.507/3.6) * Crange;
 }
@@ -321,7 +321,7 @@ float coscfgtocapoffset(uint8_t osCfg)
 		if(osCfg & 0x01){
 		    Coffset += COS_Factor[i];
         }
-	    osCfg >>= 1;
+        osCfg >>= 1;
 		
 	}
 
