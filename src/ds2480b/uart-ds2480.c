@@ -75,6 +75,20 @@ static bool  mdc02_readscratchpad_skiprom(uint8_t *scr)
     return TRUE;
 }
 
+bool mdc02_readc2c3c4_skiprom(uint8_t *scr)
+{
+    uint16_t i;
+	send_matchrom();
+
+    OWWriteByte(READ_C2C3C4);//读取电容通道 2、 3 和 4 命令
+
+	for(i=0; i < sizeof(MDC02_C2C3C4); i++)
+   {
+	    *scr++ = OWReadByte();
+	}
+
+    return TRUE;
+}
 
 static bool read_tempwaiting(uint16_t *iTemp)
 {
@@ -134,6 +148,10 @@ static float MY18B20_outputtotemp(int16_t out)
 {
 	return ((float)out/16.0);	
 }
+float mdc02_outputtocap(uint16_t out, float Co, float Cr)
+{
+	return (2.0*(out/65535.0-0.5)*Cr+Co);
+}
 
 
 int read_tmp(){
@@ -159,94 +177,503 @@ int read_tmp(){
 	return 1;
 }
 
-// bool convertcap()
-// {
-//     send_matchrom();
-//    //WWDG_SetCounter(0);
-// 
-//     OWWriteByte(CONVERT_C);//启动电容转换
-//     return TRUE;
-// }
+static bool convertcap()
+ {
+     send_matchrom();
+    //WWDG_SetCounter(0);
+ 
+     OWWriteByte(CONVERT_C);//启动电容转换
+     return TRUE;
+ }
+static bool convert_tempcap1()
+ {
+     send_matchrom();
+    //WWDG_SetCounter(0);
+ 
+     OWWriteByte(CONVERT_TC1);
+ 
+   return TRUE;
+ }
+ ///**
+ //  * @brief  读状态和配置
+ //  * @param  status 返回的状态寄存器值
+ //  * @param  cfg 返回的配置寄存器值
+ //  * @retval 状态
+ //*/
+ bool readstatusconfig(uint8_t *status, uint8_t *cfg)
+ {
+     uint8_t scrb[sizeof(MDC02_SCRATCHPAD_READ)];
+     MDC02_SCRATCHPAD_READ *scr = (MDC02_SCRATCHPAD_READ *) scrb;
+ 
+     /*读9个字节。第7字节是系统配置寄存器，第8字节是系统状态寄存器。最后字节是前8个的校验和--CRC。*/
+     if(mdc02_readscratchpad_skiprom(scrb) == FALSE)
+     {
+         return FALSE;  /*CRC验证未通过*/
+     }
+ 
+     /*计算接收的前8个字节的校验和，并与接收的第9个CRC字节比较。*/
+     if(scrb[8] != onewire_crc8(&scrb[0], 8))
+     {
+         return FALSE;  /*CRC验证未通过*/
+     }
+ 
+     *status = scr->Status;
+     *cfg = scr->Cfg;
+ 
+     return TRUE;
+ }
+ float cfbcfgtocaprange(uint8_t fbCfg)
+{
+	uint8_t i;
+	float Crange = CFB.Cfb0;
+
+	for(i = 0; i <= 5; i++)
+	{
+		if(fbCfg & 0x01){
+			Crange += CFB.Factor[i];
+		}
+		fbCfg >>= 1;
+	}
+	return (0.507/3.6) * Crange;
+}
+ bool readcfbconfig(uint8_t *Cfb)
+{
+	uint8_t scrb[sizeof(MDC02_SCRPARAMETERS)];
+	MDC02_SCRPARAMETERS *scr = (MDC02_SCRPARAMETERS *) scrb;
+
+	/*读15个字节。第5字节是偏置电容配置寄存器，第10字节是量程电容配置寄存器，最后字节是前14个的校验和--CRC。*/
+	if(mdc02_readparameters_skiprom(scrb) == FALSE)
+	{
+		return FALSE;  /*读寄存器失败*/
+	}
+
+	/*计算接收的前14个字节的校验和，并与接收的第15个CRC字节比较。*/
+	if(scrb[sizeof(MDC02_SCRPARAMETERS)-1] != onewire_crc8(&scrb[0], sizeof(MDC02_SCRPARAMETERS)-1))
+	{
+		return FALSE;   /*CRC验证未通过*/
+	}
+
+	*Cfb = scr->Cfb & MDC02_CFEED_CFB_MASK;
+//	PRINT("read register cfb:%d\r\n",*Cfb);
+	return TRUE;;
+}
+
+ /////**
+////  * @brief  获取配置的量程电容数值（pF）
+////  * @param  Crange：返回量程电容数值
+////  * @retval 无
+////*/
+void getcfg_caprange(float *Crange)
+{
+	uint8_t Cfb_cfg;
+
+	readcfbconfig(&Cfb_cfg);
+	*Crange = cfbcfgtocaprange(Cfb_cfg);
+	PRINT("cfbcfg to capcfb:%.4f\r\n",*Crange);
+}
 //
-// int read_caps()
-//{	
-//	float fcap1, fcap2, fcap3, fcap4; uint16_t iTemp, icap1, icap[1];
-//	uint8_t status, cfg;
-//	uint8_t status_wids=0;
-//	
-//	setcapchannel(CAP_CH1CH2_SEL);
-//   //WWDG_SetCounter(0);
-//	readstatusconfig((uint8_t *)&status, (uint8_t *)&cfg);
-//   //WWDG_SetCounter(0);
-//	
-//	if(convertcap() == FALSE)
-//	{
-//		PRINT("No MDC02\r\n");
-//	}
-//	else{
+///* @brief  获取配置的偏置电容数值（pF）
+//  * @param  Coffset：偏置电容配置
+//  * @retval 无
+//*/
+void getcfg_capoffset(float *Coffset)
+{	uint8_t Cos_cfg;
+
+	readcosconfig(&Cos_cfg);
+	*Coffset = coscfgtocapoffset(Cos_cfg);
+	PRINT("coscfg to capoffset:%.2f\r\n",*Coffset);
+}
+ /**
+  * @brief  读电容配置
+  * @param  Coffset：配置的偏置电容。
+  * @param  Crange：配置的量程电容。
+  * @retval 无
+*/
+bool readcosconfig(uint8_t *Coscfg)
+{
+	uint8_t scrb[sizeof(MDC02_SCRPARAMETERS)];
+	MDC02_SCRPARAMETERS *scr = (MDC02_SCRPARAMETERS *) scrb;
+
+	/*读15个字节。第5字节是偏置电容配置寄存器，第10字节是量程电容配置寄存器，最后字节是前14个的校验和--CRC。*/
+	if(mdc02_readparameters_skiprom(scrb) == FALSE)
+	{
+		return FALSE;  /*读寄存器失败*/
+	}
+
+	/*计算接收的前14个字节的校验和，并与接收的第15个CRC字节比较。*/
+  	if(scrb[sizeof(MDC02_SCRPARAMETERS)-1] != onewire_crc8(&scrb[0], sizeof(MDC02_SCRPARAMETERS)-1))
+  	{
+  		return FALSE;  /*CRC验证未通过*/
+  	}
+
+	*Coscfg = scr->Cos & (0xFF >> (3 - (scr->Cfb >> 6))); //屏蔽掉无效位，根据CFB寄存器的高2位
+//	PRINT("read register cos:%d\r\n",*Coscfg);
+
+  	return TRUE;
+}
+float coscfgtocapoffset(uint8_t osCfg)
+{
+	uint8_t i;
+	float Coffset = 0.0;
+
+	for(i = 0; i < 8; i++)
+	{
+		if(osCfg & 0x01){
+		    Coffset += COS_Factor[i];
+        }
+	    osCfg >>= 1;
+		
+	}
+
+	return Coffset;
+}
+
+bool readcapconfigure(float *Coffset, float *Crange)
+{
+	getcfg_capoffset(Coffset);
+	getcfg_caprange(Crange);
+
+	return TRUE;
+}
+ bool readtempcap1(uint16_t *iTemp, uint16_t *iCap1)
+ {
+     uint8_t scrb[sizeof(MDC02_SCRATCHPAD_READ)];
+     MDC02_SCRATCHPAD_READ *scr = (MDC02_SCRATCHPAD_READ *) scrb;
+ 
+     /*读9个字节。前两个是温度转换结果，最后字节是前8个的校验和--CRC。*/
+     if(mdc02_readscratchpad_skiprom(scrb) == FALSE)
+     {
+         return FALSE;  /*读寄存器失败*/
+     }
+    //WWDG_SetCounter(0);
+     /*计算接收的前8个字节的校验和，并与接收的第9个CRC字节比较。*/
+     if(scrb[8] != onewire_crc8(&scrb[0], 8))
+     {
+         return FALSE;  /*CRC验证未通过*/
+     }
+     
+     *iTemp=(uint16_t)scr->T_msb<<8 | scr->T_lsb;
+     *iCap1=(uint16_t)scr->C1_msb<<8 | scr->C1_lsb;
+     return TRUE;
+ }
+ 
+ bool readcapc2c3c4(uint16_t *iCap)
+ {
+     uint8_t scrb[sizeof(MDC02_C2C3C4)];
+     MDC02_C2C3C4 *scr = (MDC02_C2C3C4 *) scrb;
+ 
+     /*读6个字节。每两个字节依序分别为通道2、3和4的测量结果，最后字节是前两个的校验和--CRC。*/
+     if(mdc02_readc2c3c4_skiprom(scrb) == FALSE)
+     {
+         return FALSE;  /*读寄存器失败*/
+     }
+    //WWDG_SetCounter(0);
+     /*计算接收的前两个字节的校验和，并与接收的第3个CRC字节比较。*/
+ //  if(scrb[3] != onewire_crc8(scrb, 2))
+ //  {
+ //      return FALSE;  /*CRC验证未通过*/
+ //  }
+ 
+     *iCap= (uint16_t)scr->C2_msb<<8 | scr->C2_lsb;
+     PRINT("%.2x\r\n",*iCap);
+ //  iCap[1] = (uint16_t)scr->C3_msb<<8 | scr->C3_lsb;
+ //  iCap[2] = (uint16_t)scr->C4_msb<<8 | scr->C4_lsb;
+     return TRUE;
+ }
+
+ static int judge_status(float a,float b){
+     if(a > 5.0 && b > 5.0){
+         PRINT("进水了\r\n");
+         return 1;
+     }
+     else{
+         return 0;
+     }
+ }
+ bool writecfbconfig(uint8_t Cfb)
+{
+	uint8_t scrb[sizeof(MDC02_SCRPARAMETERS)];
+	MDC02_SCRPARAMETERS *scr = (MDC02_SCRPARAMETERS *) scrb;
+
+	/*读15个字节。第5字节是偏置电容配置寄存器，第10字节是量程电容配置寄存器，最后字节是前14个的校验和--CRC。*/
+	if(mdc02_readparameters_skiprom(scrb) == FALSE)
+	{
+		return FALSE;   /*读寄存器失败*/
+	}
+
+	/*计算接收的前14个字节的校验和，并与接收的第15个CRC字节比较。*/
+  	if(scrb[sizeof(MDC02_SCRPARAMETERS)-1] != onewire_crc8(&scrb[0], sizeof(MDC02_SCRPARAMETERS)-1))
+  	{
+  		return FALSE;  /*CRC验证未通过*/
+	}
+
+	scr->Cfb &= ~CFB_CFBSEL_Mask;
+	scr->Cfb |= Cfb;
+//	PRINT("write cfb:%d\r\n",scr->Cfb);
+
+	mdc02_writeparameters_skiprom(scrb);
+	return TRUE;
+}
+ bool writecosconfig(uint8_t Coffset, uint8_t Cosbits)
+{
+	uint8_t scrb[sizeof(MDC02_SCRPARAMETERS)];
+	MDC02_SCRPARAMETERS *scr = (MDC02_SCRPARAMETERS *) scrb;
+
+	/*读15个字节。第5字节是偏置电容配置寄存器，第10字节是量程电容配置寄存器，最后字节是前14个的校验和--CRC。*/
+	if(mdc02_readparameters_skiprom(scrb) == FALSE)
+	{
+		return FALSE;   /*读寄存器失败*/
+	}
+
+	/*计算接收的前14个字节的校验和，并与接收的第15个CRC字节比较。*/
+  	if(scrb[sizeof(MDC02_SCRPARAMETERS)-1] != onewire_crc8(&scrb[0], sizeof(MDC02_SCRPARAMETERS)-1))
+  	{
+		return FALSE;  /*CRC验证未通过*/
+  	}
+
+	scr->Cos = Coffset;
+	scr->Cfb = (scr->Cfb & ~CFB_COSRANGE_Mask) | Cosbits;
+//	PRINT("write cosconfig:%d %f\r\n",scr->Cos,scr->Cfb);
+
+	mdc02_writeparameters_skiprom(scrb);
+
+  	return TRUE;
+}
+ bool mdc02_capconfigureoffset(float Coffset)
+{
+	uint8_t CosCfg, Cosbits;
+	float b=Coffset+0.25;
+	CosCfg = captocoscfg(b);
+
+	if(!(CosCfg & ~0x1F)) {
+		Cosbits = COS_RANGE_5BIT;
+	}
+	else if(!(CosCfg & ~0x3F)) {
+		Cosbits = COS_RANGE_6BIT;
+	}
+	else if(!(CosCfg & ~0x7F)){
+		Cosbits = COS_RANGE_7BIT;
+	}
+	else{
+		Cosbits = COS_RANGE_8BIT;
+	}
+//	PRINT("%d  %d\r\n",CosCfg,Cosbits);
+	writecosconfig(CosCfg, Cosbits);
+
+	return TRUE;
+}
+ uint8_t captocoscfg(float osCap)
+{
+	int i; 
+	uint8_t CosCfg = 0x00;
+
+	for(i = 7; i >= 0; i--)
+	{
+		if(osCap >= COS_Factor[i])
+		{
+			CosCfg |= (0x01 << i);
+			osCap -= COS_Factor[i];
+		}
+	}
+	return CosCfg;
+}
+ uint8_t caprangetocfbcfg(float fsCap)
+{
+	int8_t i; 
+	uint8_t CfbCfg = 0x00;
+
+	fsCap = fsCap * (3.6/0.507);
+
+	fsCap -= CFB.Cfb0;
+
+	for(i = 5; i >= 0; i--)
+	{
+		if(fsCap >= CFB.Factor[i])
+		{
+			fsCap -= CFB.Factor[i];
+			CfbCfg |= (0x01 << i);
+		}
+	}
+
+	return CfbCfg;
+}
+ bool mdc02_capconfigurefs(float Cfs)
+{
+	uint8_t Cfbcfg;
+
+	Cfs = (Cfs + 0.1408);
+	Cfbcfg = caprangetocfbcfg(Cfs);
+//	PRINT("before write cfbcfg: %d\r\n",Cfbcfg);
+
+	writecfbconfig(Cfbcfg);
+
+	return TRUE;
+}
+ bool mdc02_capconfigurerange(float Cmin, float Cmax)
+{ 
+	float Cfs, Cos;
+
+//	if(!((Cmax <= 119.0) && (Cmax > Cmin) && (Cmin >= 0.0) && ((Cmax-Cmin) <= 31.0)))
+//	return FALSE;	//The input value is out of range.
+
+	Cos = (Cmin + Cmax)/2.0;
+	Cfs = (Cmax - Cmin)/2.0;
+
+	mdc02_capconfigureoffset(Cos);
+	mdc02_capconfigurefs(Cfs);
+
+	return TRUE;
+}
+ int mdc02_range(float Cmin,float Cmax)
+ { 
+ //      printf("\r\nCmin= %3.2f Cmax=%3.2f", Cmin, Cmax);
+     if(!((Cmax <= 119.0) && (Cmax > Cmin) && (Cmin >= 0.0) && 
+             ((Cmax-Cmin) <= 31.0)))  
+     {
+         PRINT(" %s", "The input is out of range"); 
+         return 0;
+     }
+         
+     mdc02_capconfigurerange(Cmin, Cmax);
+         
+     readcapconfigure(&onewire_dev.CapCfg_offset, &onewire_dev.CapCfg_range);
+ //  PRINT("%.2f  %.5f\r\n",CapCfg_offset,CapCfg_range);
+         
+     return 1;
+ }
+
+ int read_caps()
+{	
+	float fcap1, fcap2, fcap3, fcap4; uint16_t iTemp, icap1, icap[1];
+	uint8_t status, cfg;
+	uint8_t status_wids=0;
+	
+	setcapchannel(CAP_CH1CH2_SEL);
+   //WWDG_SetCounter(0);
+	readstatusconfig((uint8_t *)&status, (uint8_t *)&cfg);
+   //WWDG_SetCounter(0);
+	
+	if(convertcap() == FALSE)
+	{
+		PRINT("No MDC02\r\n");
+	}
+	else{
 //		WWDG_SetCounter(0 );
-//		ow_delay_us(15);
-//		readcapconfigure(&onewire_dev.CapCfg_offset, &onewire_dev.CapCfg_range,num);
-//       //WWDG_SetCounter(0);
-////		PRINT("%f  %.5f\r\n",onewire_dev.CapCfg_offset,onewire_dev.CapCfg_range);
-//		readstatusconfig((uint8_t *)&status, (uint8_t *)&cfg,num);
-//       //WWDG_SetCounter(0);
-//
-//		readtempcap1(&iTemp, &icap1,num);
-//       //WWDG_SetCounter(0);
-//		if(readcapc2c3c4(&icap[0],num) == FALSE){
-//			PRINT("read cap2 error");
-//		}
-//       //WWDG_SetCounter(0);
-//		fcap1 = mdc02_outputtocap(icap1, onewire_dev.CapCfg_offset, onewire_dev.CapCfg_range);
-//		fcap2 = mdc02_outputtocap(icap[0], onewire_dev.CapCfg_offset, onewire_dev.CapCfg_range);
-//       //WWDG_SetCounter(0);
-//		PRINT("Array_index= %d, C1=%4d , %6.3f pf  ,C2=%4d, %6.3f pf , S=%02X   C=%02X\r\n",num, icap1, fcap1, icap[0], fcap2, status, cfg);
-//
-//		status_wids=judge_status(fcap1,fcap2);
-//		PRINT("\r\n");
+		DelayUs(15);
+		readcapconfigure(&onewire_dev.CapCfg_offset, &onewire_dev.CapCfg_range);
+       //WWDG_SetCounter(0);
+//		PRINT("%f  %.5f\r\n",onewire_dev.CapCfg_offset,onewire_dev.CapCfg_range);
+		readstatusconfig((uint8_t *)&status, (uint8_t *)&cfg);
+       //WWDG_SetCounter(0);
+
+		readtempcap1(&iTemp, &icap1);
+       //WWDG_SetCounter(0);
+		if(readcapc2c3c4(&icap[0]) == FALSE){
+			PRINT("read cap2 error");
+		}
+       //WWDG_SetCounter(0);
+		fcap1 = mdc02_outputtocap(icap1, onewire_dev.CapCfg_offset, onewire_dev.CapCfg_range);
+		fcap2 = mdc02_outputtocap(icap[0], onewire_dev.CapCfg_offset, onewire_dev.CapCfg_range);
+       //WWDG_SetCounter(0);
+		PRINT("C1=%4d , %6.3f pf  ,C2=%4d, %6.3f pf , S=%02X   C=%02X\r\n", icap1, fcap1, icap[0], fcap2, status, cfg);
+
+		status_wids=judge_status(fcap1,fcap2);
+		PRINT("\r\n");
 //		OLED_ShowNum(82, 16, status_wids, 1, 16, 1);
 //
 //		OLED_Refresh(0);
 //		modbus_di_update(MB_DI_ADDR_WIDS,status_wids);
-//		
-//		}
-////    WWDG_SetCounter(0);
-//
-//	ow_delay_us(990);
-////    WWDG_SetCounter(0);
-//	return 1;		
-//}
-//////
-//static int read_tempc1(int num)
-//{
-//	uint16_t iTemp, iCap1; 
-//	float fTemp, fCap1;
-//		
-//	readcapconfigure(&onewire_dev.CapCfg_offset, &onewire_dev.CapCfg_range,num);
-//	setcapchannel(CAP_CH1_SEL,num);
-//
-//	if(convert_tempcap1(num) == TRUE)
-//	{
-//		ow_delay_us(15);		
-//		if(readtempcap1(&iTemp, &iCap1,num) == TRUE) 
-//		{	
-////			PRINT("%2x\r\n",iTemp);
-//			fTemp=mdc02_outputtotemp(iTemp);
-//			fCap1=mdc02_outputtocap(iCap1, onewire_dev.CapCfg_offset, onewire_dev.CapCfg_range);
-//           //WWDG_SetCounter(0);
-//			PRINT(" Array_index=%d ,T= %3.3f ℃ C1= %6.3f pF\r\n",num, fTemp, fCap1);
-//		}
-//	}
-//	else
-//	{
-//		PRINT("\r\n No MDC02");
-//	}
-////    WWDG_SetCounter(0);
-//	ow_delay_us(990);
-////    WWDG_SetCounter(0);
-//	return 1;		
-//}
+		
+		}
+//    WWDG_SetCounter(0);
+
+	DelayUs(990);
+//    WWDG_SetCounter(0);
+	return 1;		
+}
+
+bool mdc02_writeparameters_skiprom(uint8_t *scr)
+{
+    uint16_t i;
+
+	send_matchrom();
+
+    OWWriteByte(WRITE_PARAMETERS);
+
+	for(i=0; i < sizeof(MDC02_SCRPARAMETERS); i++)
+    {
+    	OWWriteByte(*scr++);
+	}
+
+    return TRUE;
+}
+bool mdc02_readparameters_skiprom(uint8_t *scr)
+{
+    uint16_t i;
+	send_matchrom();
+    OWWriteByte(READ_PARAMETERS );
+
+	for(i=0; i < sizeof(MDC02_SCRPARAMETERS); i++)
+    {
+    	*scr++ = OWReadByte();
+	}
+
+    return TRUE;
+}
+
+bool setcapchannel(uint8_t channel)
+{
+	uint8_t scrb[sizeof(MDC02_SCRPARAMETERS)];
+	MDC02_SCRPARAMETERS *scr = (MDC02_SCRPARAMETERS *) scrb;
+
+	/*读15个字节。第4字节是通道选择寄存器，最后字节是前14个的校验和--CRC。*/
+	if(mdc02_readparameters_skiprom(scrb) == FALSE)
+	{
+		return FALSE;  /*读寄存器失败*/
+	}
+
+	/*计算接收的前14个字节的校验和，并与接收的第15个CRC字节比较。*/
+	if(scrb[sizeof(MDC02_SCRPARAMETERS)-1] != onewire_crc8(&scrb[0], sizeof(MDC02_SCRPARAMETERS)-1))
+	{
+		return FALSE;  /*CRC验证未通过*/
+	}
+
+	scr->Ch_Sel = (scr->Ch_Sel & ~CCS_CHANNEL_MASK) | (channel & CCS_CHANNEL_MASK);
+
+	mdc02_writeparameters_skiprom(scrb);
+
+	return TRUE;
+}
+
+static int read_tempc1()
+{
+	uint16_t iTemp, iCap1; 
+	float fTemp, fCap1;
+		
+	readcapconfigure(&onewire_dev.CapCfg_offset, &onewire_dev.CapCfg_range);
+	setcapchannel(CAP_CH1_SEL);
+
+	if(convert_tempcap1() == TRUE)
+	{
+		DelayUs(15);		
+		if(readtempcap1(&iTemp, &iCap1) == TRUE) 
+		{	
+//			PRINT("%2x\r\n",iTemp);
+			fTemp=mdc02_outputtotemp(iTemp);
+			fCap1=mdc02_outputtocap(iCap1, onewire_dev.CapCfg_offset, onewire_dev.CapCfg_range);
+           //WWDG_SetCounter(0);
+			PRINT("T= %3.3f ℃ C1= %6.3f pF\r\n", fTemp, fCap1);
+		}
+	}
+	else
+	{
+		PRINT("\r\n No MDC02");
+	}
+//    WWDG_SetCounter(0);
+	DelayUs(990);
+//    WWDG_SetCounter(0);
+	return 1;		
+}
 
 ///*********************************************************************
 // * @fn      TMR0_IRQHandler

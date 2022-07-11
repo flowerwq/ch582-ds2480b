@@ -226,36 +226,36 @@ float coscfgtocapoffset(uint8_t osCfg);
 float mdc02_outputtocap(uint16_t out, float Co, float Cr);
 float mdc02_outputtotemp(int16_t out);
 
-//void getcfg_capoffset(float *Coffset);
-//void getcfg_caprange(float *Crange);
-//bool setcapchannel(uint8_t channel);
+////void getcfg_capoffset(float *Coffset);
+////void getcfg_caprange(float *Crange);
+////bool setcapchannel(uint8_t channel);
 ////*** write ***////
 
 bool mdc02_writescratchpadext_skiprom(uint8_t *scr);
-//bool writecosconfig(uint8_t Coffset, uint8_t Cosbits);
-//bool mdc02_writeparameters_skiprom(uint8_t *scr);
-//bool mdc02_capconfigurerange(float Cmin, float Cmax);
-//bool writecfbconfig(uint8_t Cfb);
+////bool writecosconfig(uint8_t Coffset, uint8_t Cosbits);
+////bool mdc02_writeparameters_skiprom(uint8_t *scr);
+////bool mdc02_capconfigurerange(float Cmin, float Cmax);
+////bool writecfbconfig(uint8_t Cfb);
 
 
 /////////////**** read ****/////////////
-//bool read_tempwaiting(uint16_t *iTemp);
+////bool read_tempwaiting(uint16_t *iTemp);
 
 int read_cap(void);
-//bool readcfbconfig(uint8_t *Cfb);
-//bool mdc02_readparameters_skiprom(uint8_t *scr);
-//bool readcosconfig(uint8_t *Coscfg);
-//bool readcapconfigure(float *Coffset, float *Crange);
-//bool readstatusconfig(uint8_t *status, uint8_t *cfg);
-//bool mdc02_capconfigureoffset(float Coffset);
-//bool readtempcap1(uint16_t *iTemp, uint16_t *iCap1);
-//bool mdc02_readc2c3c4_skiprom(uint8_t *scr);
-//bool readcapc2c3c4(uint16_t *iCap);
-//bool convertcap(void);
-//bool mdc02_readscratchpad_skiprom(uint8_t *scr);
+////bool readcfbconfig(uint8_t *Cfb);
+////bool mdc02_readparameters_skiprom(uint8_t *scr);
+////bool readcosconfig(uint8_t *Coscfg);
+////bool readcapconfigure(float *Coffset, float *Crange);
+////bool readstatusconfig(uint8_t *status, uint8_t *cfg);
+////bool mdc02_capconfigureoffset(float Coffset);
+////bool readtempcap1(uint16_t *iTemp, uint16_t *iCap1);
+////bool mdc02_readc2c3c4_skiprom(uint8_t *scr);
+////bool readcapc2c3c4(uint16_t *iCap);
+////bool convertcap(void);
+////bool mdc02_readscratchpad_skiprom(uint8_t *scr);
 int mdc02_offset(float Co);
-//int mdc02_range(float Cmin,float Cmax);
-//bool mdc02_capconfigurefs(float Cfs);
+////int mdc02_range(float Cmin,float Cmax);
+////bool mdc02_capconfigurefs(float Cfs);
 uint8_t caprangetocfbcfg(float fsCap);
 
 
@@ -264,39 +264,60 @@ uint8_t caprangetocfbcfg(float fsCap);
 bool send_matchrom();
 int read_tmp();
 int read_caps();
-bool convertcap();
+bool setcapchannel(uint8_t channel);
+bool readcapconfigure(float *Coffset, float *Crange);
+bool mdc02_writeparameters_skiprom(uint8_t *scr);
+bool mdc02_readparameters_skiprom(uint8_t *scr);
+bool readstatusconfig(uint8_t *status, uint8_t *cfg);
+bool readcapconfigure(float *Coffset, float *Crange);
+void getcfg_caprange(float *Crange);
+bool readcfbconfig(uint8_t *Cfb);
+bool readcosconfig(uint8_t *Coscfg);
+bool readtempcap1(uint16_t *iTemp, uint16_t *iCap1);
+bool readcapc2c3c4(uint16_t *iCap);
+bool mdc02_readc2c3c4_skiprom(uint8_t *scr);
+bool mdc02_capconfigurerange(float Cmin, float Cmax);
+int mdc02_range(float Cmin,float Cmax);
+bool mdc02_capconfigurerange(float Cmin, float Cmax);
+bool mdc02_capconfigureoffset(float Coffset);
+bool mdc02_capconfigurefs(float Cfs);
+bool writecfbconfig(uint8_t Cfb);
+bool writecosconfig(uint8_t Coffset, uint8_t Cosbits);
+
+
+//bool convertcap();
 
 
 
 //bool send_matchrom(uint8_t (*FoundROM)[8],int num);
 
-bool mdc02_readparameters_skiprom(uint8_t *scr,int num);
+//bool mdc02_readparameters_skiprom(uint8_t *scr,int num);
 //bool  mdc02_readscratchpad_skiprom(uint8_t *scr,int num);
-bool mdc02_readc2c3c4_skiprom(uint8_t *scr,int num);
-bool readstatusconfig(uint8_t *status, uint8_t *cfg,int num);
-bool readcfbconfig(uint8_t *Cfb,int num);
-bool readcapconfigure(float *Coffset, float *Crange,int num);
-bool readtempcap1(uint16_t *iTemp, uint16_t *iCap1,int num);
-bool readcapc2c3c4(uint16_t *iCap,int num);
+//bool mdc02_readc2c3c4_skiprom(uint8_t *scr,int num);
+//bool readstatusconfig(uint8_t *status, uint8_t *cfg,int num);
+//bool readcfbconfig(uint8_t *Cfb,int num);
+//bool readcapconfigure(float *Coffset, float *Crange,int num);
+//bool readtempcap1(uint16_t *iTemp, uint16_t *iCap1,int num);
+//bool readcapc2c3c4(uint16_t *iCap,int num);
 //bool read_tempwaiting(uint16_t *iTemp,int num);
-bool readcosconfig(uint8_t *Coscfg,int num);
+//bool readcosconfig(uint8_t *Coscfg,int num);
 int read_temp(int num);
 
-void getcfg_caprange(float *Crange,int num);
-void getcfg_capoffset(float *Coffset,int num);
-bool setcapchannel(uint8_t channel,int num);
-bool convert_tempcap1(int num);
+//void getcfg_caprange(float *Crange,int num);
+//void getcfg_capoffset(float *Coffset,int num);
+//bool setcapchannel(uint8_t channel,int num);
+//bool convert_tempcap1(int num);
 //bool convertcap(int num);
 void dev_type_choose_function();
 
-bool mdc02_writeparameters_skiprom(uint8_t *scr, int num);
-bool writecosconfig(uint8_t Coffset, uint8_t Cosbits,int num);
-bool writecfbconfig(uint8_t Cfb,int num);
-bool mdc02_capconfigureoffset(float Coffset,int num);
-bool mdc02_capconfigurefs(float Cfs,int num);
-bool mdc02_capconfigurerange(float Cmin, float Cmax,int num);
+//bool mdc02_writeparameters_skiprom(uint8_t *scr, int num);
+//bool writecosconfig(uint8_t Coffset, uint8_t Cosbits,int num);
+//bool writecfbconfig(uint8_t Cfb,int num);
+//bool mdc02_capconfigureoffset(float Coffset,int num);
+//bool mdc02_capconfigurefs(float Cfs,int num);
+//bool mdc02_capconfigurerange(float Cmin, float Cmax,int num);
 
-int mdc02_range(float Cmin,float Cmax,int num);
+//int mdc02_range(float Cmin,float Cmax,int num);
 void romid_crc(int num);
 //void romid_crc(struct dev_slave *dev,int num);
 
