@@ -13,6 +13,7 @@ void SysTick_Handler(){
 
 int worktime_init(){
 	SysTick_Config(GetSysClock()/1000);
+	return 0;
 }
 
 /**

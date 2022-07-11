@@ -80,7 +80,7 @@ int gpio_set_direction(gpio_num_t num, gpio_mode_t mode){
 		GPIOA_ModeCfg(BIT0 << (num - GPIO_NUM_PA_0), mode);
 	}
 	if (GPIO_PB(num)){
-		GPIOA_ModeCfg(BIT0 << (num - GPIO_NUM_PB_0), mode);
+		GPIOB_ModeCfg(BIT0 << (num - GPIO_NUM_PB_0), mode);
 	}
 	return 0;
 fail:
@@ -191,3 +191,4 @@ int gpio_intr_disable(gpio_num_t num){
 fail:
 	return -1;
 }
+

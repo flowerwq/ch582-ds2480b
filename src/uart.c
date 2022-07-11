@@ -3,20 +3,23 @@
 #include "utils.h"
 #include "app_config.h"
 #include "worktime.h"
+#include "utils/ringbuffer.h"
 
 #define TAG "UART"
 
+#define UART_CACHE_MAX	1024
+
 typedef struct uart_hal{
-	PUINT8V mcr;
-	PUINT8V ier;
-	PUINT8V fcr;
-	PUINT8V lcr;
-	PUINT8V iir;
-	PUINT8V lsr;
-	PUINT8V msr;
-	PUINT8V rbr;
-	PUINT8V thr;
-	PUINT8V rfc;
+	PUINT8V mcr;	//modem control
+	PUINT8V ier;	//interrupt enable
+	PUINT8V fcr;	//FIFO control
+	PUINT8V lcr;	//line control
+	PUINT8V iir;	//interrupt identification
+	PUINT8V lsr;	//line status
+	PUINT8V msr;	//modem status
+	PUINT8V rbr;	//receiver buffer, receiving byte
+	PUINT8V thr;	//transmitter holding, transmittal byte
+	PUINT8V rfc;	//receiver FIFO count
 	PUINT8V tfc;
 	PUINT16V dl;
 	PUINT8V div;
@@ -34,6 +37,8 @@ typedef struct uart_context{
 	int irq_num;
 	uint8_t flag_init;
 	uint16_t pin_alter_mask;
+	uint8_t cache_buf[UART_CACHE_MAX];
+	ringbuffer_t cache_info;
 } uart_ctx_t;
 
 static uart_ctx_t uart_ctx[UART_NUM_MAX] = {
@@ -133,6 +138,16 @@ static uart_ctx_t uart_ctx[UART_NUM_MAX] = {
 	},
 };
 
+static int uart_cache_write(uart_num_t num, uint8_t *buf, uint16_t len){
+	uart_ctx_t *ctx = &uart_ctx[num];
+	ringbuffer_write(&ctx->cache_info, buf, len);
+	return 0;
+}
+static int uart_cache_read(uart_num_t num, uint8_t *buf, uint16_t len){
+	uart_ctx_t *ctx = &uart_ctx[num];
+	return ringbuffer_read(&ctx->cache_info, buf, len);
+}
+
 /*********************************************************************
  * @fn      UART0_IRQHandler
  *
@@ -160,6 +175,8 @@ void UART0_IRQHandler(void)
             	d = UART0_RecvByte();
 				if(ctx->config.recv_cb){
 					ctx->config.recv_cb(UART_NUM_0, &d, 1, ctx->config.user_ctx);
+				}else{
+					uart_cache_write(UART_NUM_0, &d, 1);
 				}
             }
             break;
@@ -170,6 +187,8 @@ void UART0_IRQHandler(void)
                 d = UART0_RecvByte();
 				if(ctx->config.recv_cb){
 					ctx->config.recv_cb(UART_NUM_0, &d, 1, ctx->config.user_ctx);
+				}else{
+					uart_cache_write(UART_NUM_0, &d, 1);
 				}
             }
             break;
@@ -212,6 +231,8 @@ void UART1_IRQHandler(void)
             	d = UART1_RecvByte();
 				if(ctx->config.recv_cb){
 					ctx->config.recv_cb(UART_NUM_1, &d, 1, ctx->config.user_ctx);
+				}else{
+					uart_cache_write(UART_NUM_1, &d, 1);
 				}
             }
             break;
@@ -222,6 +243,8 @@ void UART1_IRQHandler(void)
                 d = UART1_RecvByte();
 				if(ctx->config.recv_cb){
 					ctx->config.recv_cb(UART_NUM_1, &d, 1, ctx->config.user_ctx);
+				}else{
+					uart_cache_write(UART_NUM_1, &d, 1);
 				}
             }
             break;
@@ -264,6 +287,8 @@ void UART2_IRQHandler(void)
             	d = UART2_RecvByte();
 				if(ctx->config.recv_cb){
 					ctx->config.recv_cb(UART_NUM_2, &d, 1, ctx->config.user_ctx);
+				}else{
+					uart_cache_write(UART_NUM_2, &d, 1);
 				}
             }
             break;
@@ -274,6 +299,8 @@ void UART2_IRQHandler(void)
                 d = UART2_RecvByte();
 				if(ctx->config.recv_cb){
 					ctx->config.recv_cb(UART_NUM_2, &d, 1, ctx->config.user_ctx);
+				}else{
+					uart_cache_write(UART_NUM_2, &d, 1);
 				}
             }
             break;
@@ -316,6 +343,8 @@ void UART3_IRQHandler(void)
             	d = UART3_RecvByte();
 				if(ctx->config.recv_cb){
 					ctx->config.recv_cb(UART_NUM_3, &d, 1, ctx->config.user_ctx);
+				}else{
+					uart_cache_write(UART_NUM_3, &d, 1);
 				}
             }
             break;
@@ -326,6 +355,8 @@ void UART3_IRQHandler(void)
                 d = UART3_RecvByte();
 				if(ctx->config.recv_cb){
 					ctx->config.recv_cb(UART_NUM_3, &d, 1, ctx->config.user_ctx);
+				}else{
+					uart_cache_write(UART_NUM_3, &d, 1);
 				}
             }
             break;
@@ -474,7 +505,7 @@ static void uart_byte_trig_config(uart_num_t num, UARTByteTRIGTypeDef b)
 
 static int uart_init_internal(uart_num_t num, uart_config_t *config){
 	uart_ctx_t *ctx = &uart_ctx[num];
-	int ret = uart_io_init(num, config);
+	uart_io_init(num, config);
 	uart_set_baudrate(num, config->baudrate);
 	uart_set_databits(num, config->databits);
 	uart_set_stopbits(num, config->stopbits);
@@ -486,11 +517,9 @@ static int uart_init_internal(uart_num_t num, uart_config_t *config){
     *ctx->regs.ier = RB_IER_TXD_EN;
     *ctx->regs.div = 1;
 	
+	ringbuffer_init(&ctx->cache_info, ctx->cache_buf, UART_CACHE_MAX);
 	uart_byte_trig_config(num, UART_1BYTE_TRIG);
-	uart_int_config(num, 1, RB_IER_LINE_STAT);
-	if (config->recv_cb){
-		uart_int_config(num, 1, RB_IER_RECV_RDY);
-	}
+	uart_int_config(num, 1, RB_IER_LINE_STAT|RB_IER_RECV_RDY);
 	PFIC_EnableIRQ(ctx->irq_num);
 	return 0;
 }
@@ -522,6 +551,14 @@ fail:
 	return -1;
 }
 
+/**
+ * @brief send data to uart.
+ * @param num uart number
+ * @param buf data buffer
+ * @param len data length
+ * @return 0 - Success, (-1) - failed.
+ * @note This function will not work if you init uart with "recv_cb" set
+ */
 int uart_send(uart_num_t num, uint8_t * buf, uint32_t len){
 	if (!UART_NUM_VALID(num)){
 		LOG_ERROR(TAG, "invalid uart num");
@@ -562,6 +599,7 @@ fail:
 int uart_read(uart_num_t num, uint8_t *buf, uint16_t len, uint32_t timeout_ms){
 	uint16_t byts_read = 0;
 	worktime_t worktime = worktime_get();
+	int ret = 0;
 	if (!UART_NUM_VALID(num)){
 		LOG_ERROR(TAG, "invalid uart num");
 		goto fail;
@@ -572,11 +610,14 @@ int uart_read(uart_num_t num, uint8_t *buf, uint16_t len, uint32_t timeout_ms){
 		goto fail;
 	}
 	while(worktime_since(worktime) < timeout_ms){
-		while(*ctx->regs.rfc){
-			buf[byts_read ++] = *ctx->regs.rbr;
-			if (byts_read >= len){
-				goto out;
-			}
+		ret = uart_cache_read(num, buf + byts_read, len - byts_read);
+		if (ret < 0){
+			LOG_ERROR(TAG, "cache read err");
+			goto out;
+		}
+		byts_read += ret;
+		if (byts_read >= len){
+			goto out;
 		}
 	}
 out:
@@ -613,6 +654,45 @@ int uart_rx_flush(uart_num_t num){
 	}
 	
 	*ctx->regs.fcr = BITS_SET(*ctx->regs.fcr, RB_FCR_RX_FIFO_CLR);
+	return 0;
+fail:
+	return -1;
+}
+
+int uart_tx_flush(uart_num_t num){
+	if (!UART_NUM_VALID(num)){
+		LOG_ERROR(TAG, "invalid uart num");
+		goto fail;
+	}
+	uart_ctx_t *ctx = &uart_ctx[num];
+	if (!ctx->flag_init){
+		LOG_ERROR(TAG, "not init");
+		goto fail;
+	}
+	
+	*ctx->regs.fcr = BITS_SET(*ctx->regs.fcr, RB_FCR_TX_FIFO_CLR);
+	return 0;
+fail:
+	return -1;
+}
+
+
+int uart_send_break(uart_num_t num, uint32_t time_ms){
+	if (!UART_NUM_VALID(num)){
+		LOG_ERROR(TAG, "invalid uart num");
+		goto fail;
+	}
+	worktime_t worktime = worktime_get();
+	uart_ctx_t *ctx = &uart_ctx[num];
+	if (!ctx->flag_init){
+		LOG_ERROR(TAG, "not init");
+		goto fail;
+	}
+	*ctx->regs.lcr = BITS_SET(*ctx->regs.lcr, RB_LCR_BREAK_EN);
+	while(worktime_since(worktime) < time_ms){
+		__nop();
+	}
+	*ctx->regs.lcr = BITS_CLEAR(*ctx->regs.lcr, RB_LCR_BREAK_EN);
 	return 0;
 fail:
 	return -1;

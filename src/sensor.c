@@ -38,6 +38,8 @@ static int mb_reg_before_write(mb_reg_addr_t addr, uint16_t value){
 				return -1;
 			}
 			break;
+		default:
+			break;
 	}
 	return 0;
 }
@@ -76,6 +78,8 @@ static int mb_reg_after_write(mb_reg_addr_t addr, uint16_t value){
 			}else if (0 == value){
 				modbus_sa_ctrl(0);
 			}
+			break;
+		default:
 			break;
 	}
 	return 0;

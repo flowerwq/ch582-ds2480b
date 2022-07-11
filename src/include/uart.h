@@ -25,7 +25,7 @@ typedef enum uart_par{
 
 typedef enum uart_stopbits{
 	UART_SB_1 = 0,
-	UART_SB_1_5,	//NOT support
+	UART_SB_1_5,	//NOT support by CH582M
 	UART_SB_2,
 	UART_SB_MAX,
 }uart_sb_t;
@@ -45,7 +45,7 @@ typedef struct uart_config_s{
 	 * receive callback, leave it to NULL if you want receive data manully.
 	 */
 	uart_data_cb recv_cb;
-	void *user_ctx;
+	void *user_ctx;	//!< user context, will pass to user via recv_cb
 }uart_config_t;
 
 #define UART_DEFAULT_CONFIG()	{\
@@ -55,10 +55,20 @@ typedef struct uart_config_s{
 	.parity = UART_PAR_NONE,\
 	}
 
+int uart_set_baudrate(uart_num_t num, uint32_t baudrate);
+int uart_set_parity(uart_num_t num, uart_par_t parity);
+int uart_set_databits(uart_num_t num, uint8_t databits);
+int uart_set_stopbits(uart_num_t num, uart_sb_t sb);
+
+
+
 int uart_init(uart_num_t num, uart_config_t *config);
 int uart_send(uart_num_t num, uint8_t *buf, uint32_t len);
 int uart_get_config(uart_num_t num, uart_config_t *config);
 int uart_read(uart_num_t num, uint8_t *buf, uint16_t len, uint32_t timeout_ms);
 int uart_rx_flush(uart_num_t num);
+int uart_tx_flush(uart_num_t num);
+
+int uart_send_break(uart_num_t num, uint32_t time_ms);
 
 #endif

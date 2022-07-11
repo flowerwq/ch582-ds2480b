@@ -265,7 +265,7 @@ static int st_item_verify(st_item_t *item){
 static int st_page_write_item(st_ctx_t *ctx, uint16_t idx, st_item_t *item){
 	st_page_t *page = NULL;
 	uint8_t page_status = 0;
-	uint16_t offset = 0;
+//	uint16_t offset = 0;
 	int bytes_write = 0;
 	int ret = 0;
 	if (!ST_PAGE_VALID(idx)){
@@ -324,8 +324,8 @@ static int st_page_realign(st_ctx_t *ctx, uint16_t idx){
 	uint16_t offset = 0;
 	int ret = 0;
 	page = &ctx->pages[idx];
-	uint32_t addr = idx * ST_PAGE_SIZE;
-	uint32_t bytes_read = sizeof(item.header);
+//	uint32_t addr = idx * ST_PAGE_SIZE;
+//	uint32_t bytes_read = sizeof(item.header);
 	LOG_DEBUG(TAG, "page %d realign", idx);
 	while(offset < page->bytes_used){
 		ret = st_page_read(idx, offset, (uint8_t *)&item.header, 
@@ -488,7 +488,7 @@ int st_delete_item_with_loc(st_ctx_t *ctx, uint16_t item_idx, st_item_location_t
 		goto fail;
 	}
 	if (!ST_PAGE_VALID(location->page)){
-		LOG_ERROR(TAG, "%s:invalid page idx(%d)", location->page, __FUNCTION__);
+		LOG_ERROR(TAG, "%s:invalid page idx(%d)", __FUNCTION__, location->page);
 		goto fail;
 	}
 	page = &ctx->pages[location->page];
@@ -622,8 +622,8 @@ static int st_page_scan(st_ctx_t *ctx, uint16_t idx){
 	st_item_t item = {0};
 	int ret = 0;
 	page = &ctx->pages[idx];
-	uint32_t addr = idx * ST_PAGE_SIZE;
-	uint32_t bytes_read = sizeof(item.header);
+//	uint32_t addr = idx * ST_PAGE_SIZE;
+//	uint32_t bytes_read = sizeof(item.header);
 	page->bytes_used = 0;
 	page->item_cnt = 0;
 	LOG_DEBUG(TAG, "scan page %d", idx);
@@ -737,7 +737,7 @@ fail:
 int st_erase_all(st_ctx_t *ctx){
 	int i = 0;
 	int ret = 0;
-	st_page_status_t page_status = {0};
+//	st_page_status_t page_status = {0};
 	for(i = 0; i < ST_PAGE_MAX; i++){
 		if (ST_PAGE_S_ERASED == ctx->pages[i].status){
 			continue;
@@ -761,14 +761,17 @@ fail:
 
 int st_init(){
 	int ret = 0;
-	st_page_status_t page_status = {0};
+//	st_page_status_t page_status = {0};
 	st_ctx.page_start = ST_PAGE_MAX;
 	st_ctx.page_active = ST_PAGE_MAX;
 	lasttime = worktime_get();
-	st_page_init(&st_ctx);
+	ret = st_page_init(&st_ctx);
+	if (ret < 0){
+		goto fail;
+	}
 	st_ctx.flag_init = 1;
 	
-out:
+//out:
 	return 0;
 fail:
 	return -1;
@@ -824,10 +827,10 @@ fail:
 }
 
 static int st_get_available_page(st_ctx_t *ctx, uint16_t data_len){
-	int i = 0;
+//	int i = 0;
 	int ret = 0;
 	uint16_t page_idx = ST_PAGE_MAX;
-	st_page_status_t page_status = {0};
+//	st_page_status_t page_status = {0};
 	if (!ctx){
 		return -1;
 	}
@@ -895,7 +898,7 @@ int st_write_item(uint16_t item_idx, uint8_t *buf, int len)
 	uint16_t page_idx = ST_PAGE_MAX;
 	st_page_t *page = NULL;
 	st_ctx_t *ctx = &st_ctx;
-	int i = 0;
+//	int i = 0;
 	int ret = 0;
 	if (!buf || len <= 0 || len > ST_MAX_CONTENT_LEN){
 		return -1;
@@ -950,8 +953,8 @@ fail:
 int st_read_item(uint16_t item_idx, uint8_t *buf, int len)
 {
 	st_item_t item = {0};
-	st_page_t *page = NULL;
-	int i = 0;
+//	st_page_t *page = NULL;
+//	int i = 0;
 	int ret = 0;
 	if (!st_is_init()){
 		return -1;

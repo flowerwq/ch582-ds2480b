@@ -1,9 +1,9 @@
 #ifndef SRC_INCLUDE_ONEWIRE_H_
 #define SRC_INCLUDE_ONEWIRE_H_
-
+#include <stdbool.h>
 #include "CH58x_common.h"
 // Basic 1-Wire functions
-int  OWReset();
+bool  OWReset();
 unsigned char OWTouchBit(unsigned char sendbit);
 unsigned char OWTouchByte(unsigned char sendbyte);
 void OWWriteByte(unsigned char byte_value);

@@ -26,7 +26,7 @@ void log_buffer_hex(const char *tag, const void *buffer, uint16_t buff_len,
         
 
         for (int i = 0; i < bytes_cur_line; i ++) {
-            sprintf(hex_buffer + 3 * i, "%02x ", ptr_line[i]);
+            sprintf((hex_buffer + (3 * i)), "%02x ", ptr_line[i]);
         }
         LOG_LEVEL(log_level, tag, "%s", hex_buffer);
         buffer += bytes_cur_line;

@@ -86,7 +86,7 @@ int display_string(int line, char *str){
 			OLED_clear_buffer(&area);
 		}
 	}
-	len = snprintf(line_idx[line]->buffer, DISPLAY_LINE_LEN, "%s", str);
+	len = snprintf((char *)line_idx[line]->buffer, DISPLAY_LINE_LEN, "%s", str);
 	if (len < 0){
 		return -1;
 	}

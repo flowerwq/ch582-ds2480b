@@ -131,7 +131,7 @@ int slave_recv(uart_num_t uart, uint8_t *buf, uint32_t len, void *ctx){
 		default:
 			break;
 	}
-out:
+//out:
 	if (stoped){
 		MB_TIMER_RESUME();
 
@@ -248,11 +248,11 @@ int modbus_slave_uart_init(mb_slave_ctx_t *slave_ctx){
 	
 	return 0;
 }
-int modbus_slave_uart_send(const uint8_t *buf, int len){
+int modbus_slave_uart_send(uint8_t *buf, int len){
 	if (!buf || len <= 0){
 		return -1;
 	}
-	uart_send(HOST_UART,(uint8_t *) buf, len);
+	uart_send(HOST_UART, buf, len);
 	return 0;
 }
 
@@ -264,7 +264,7 @@ int modbus_slave_init(mb_callback_t *callback){
 	if (!addr){
 		addr = 1;
 	}
-	LOG_DEBUG(TAG, "slave init, addr:%d, baudrate:%d", addr, cfg_uart.baudrate);
+	LOG_DEBUG(TAG, "slave init, addr:%d, baudrate:%lu", addr, cfg_uart.baudrate);
 	memset(&mb_slave_ctx, 0, sizeof(mb_slave_ctx_t));
 	mb_slave_ctx.address = addr;
 	mb_slave_ctx.baudrate = cfg_uart.baudrate;
@@ -327,7 +327,7 @@ void modbus_frame_check(){
 			}
 			if (MODBUS_ERROR_ADDRESS != modbusGetErrorCode(err)){
 				if (modbusSlaveGetResponseLength(&mb_slave_ctx.slave) > 0){
-					modbus_slave_uart_send(modbusSlaveGetResponse(&mb_slave_ctx.slave), 
+					modbus_slave_uart_send((uint8_t *)modbusSlaveGetResponse(&mb_slave_ctx.slave), 
 						modbusSlaveGetResponseLength(&mb_slave_ctx.slave));
 				}
 			}

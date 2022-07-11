@@ -105,7 +105,10 @@ int main()
 	display_init();
 	cfg_init();
 	sensor_init();
-	
+    DS2480B_Detect();
+
+    
+    find_device();
 	while(worktime_since(worktime) < 1000){
 		__nop();
 	}
@@ -121,7 +124,6 @@ int main()
 	PRINT("main loop start ...\r\n");
     while(1){
 		OLED_Refresh();
-		find_device();
 //		if (worktime_since(worktime) >= 1000){
 //			worktime = worktime_get();
 //			if ((worktime / 1000) % 2){

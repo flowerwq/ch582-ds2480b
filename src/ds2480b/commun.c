@@ -19,9 +19,10 @@
 // Returns: 1   if operation is set (1)
 //          0/1 state of bit number 'loc' if operation is reading
 //
-int bitacc(int op, int state, int loc, unsigned char *buf)
+int bitacc(int op, int state, int loc, uint8_t *buf)
 {
-   int nbyt,nbit;
+   int nbyt = 0;
+   int nbit = 0;
 
    nbyt = (loc / 8);
    nbit = loc - (nbyt * 8);
@@ -43,16 +44,18 @@ int bitacc(int op, int state, int loc, unsigned char *buf)
 }
 
 int find_device(){
-    int rslt,i,cnt;
-    unsigned char ROM_NO[8];
+    volatile int i;
+    volatile int cnt = 0;
+    volatile int rslt =0;
+    extern unsigned char ROM_NO[8] ;
 
     PRINT("\nFIND ALL\r\n");
-    cnt = 0;
+
     rslt = OWFirst();
     while (rslt)
     {
       // print device found
-      for (i = 7; i >= 0; i--){
+      for (i = 0; i < 8; i++){
          PRINT("%02X ", ROM_NO[i]);
       }
       PRINT("序号为： %d\r\n",++cnt);
@@ -61,3 +64,5 @@ int find_device(){
     }
     return 0;
 }
+
+

@@ -48,7 +48,7 @@ static int cfg_save_item(cfg_idx_t idx, void *content, int len){
 	int ret = 0;
 	//int buflen;
 	if (!CFG_IDX_VALID(idx)){
-		LOG_ERROR(TAG, "%s:invalid idx", __FUNCTION__, idx);
+		LOG_ERROR(TAG, "%s:invalid idx(%d)", __FUNCTION__, idx);
 		return -1;
 	}
 	struct cfg_item *item = &cfg_items[idx];
@@ -58,7 +58,7 @@ static int cfg_save_item(cfg_idx_t idx, void *content, int len){
 		ret = item->encode_func(content, len, buf);
 		if (ret < 0){
 			LOG_ERROR(TAG, "fail to encode %04X", item->key);
-			return -1;
+			goto fail;
 		}
 	}else{
 		memset(buf, 0, item->size);
@@ -67,7 +67,7 @@ static int cfg_save_item(cfg_idx_t idx, void *content, int len){
 	ret = st_write_item(item->key, buf, item->size);
 	if (ret < 0){
 		LOG_ERROR(TAG, "fail to save %04X.", item->key);
-		return -1;
+		goto fail;
 	}
 	return 0;
 fail:
@@ -75,7 +75,7 @@ fail:
 }
 
 int cfg_get_mb_uart(cfg_uart_t *result){
-	int ret = 0;
+	//int ret = 0;
 	if (!result){
 		return -1;
 	}
@@ -97,7 +97,7 @@ int cfg_update_mb_uart(cfg_uart_t *val){
 		return -1;
 	}
 	if (memcmp(&cfg_cache.mb_uart, val, sizeof(cfg_uart_t))){
-		int ret = cfg_save_item(CFG_IDX_MB_UART, val, sizeof(cfg_uart_t));
+		ret = cfg_save_item(CFG_IDX_MB_UART, val, sizeof(cfg_uart_t));
 		if (ret < 0){
 			return -1;
 		}
@@ -107,7 +107,7 @@ int cfg_update_mb_uart(cfg_uart_t *val){
 }
 
 int cfg_get_ota(cfg_ota_t *result){
-	int ret = 0;
+	//int ret = 0;
 	if (!result){
 		return -1;
 	}
@@ -129,7 +129,7 @@ int cfg_update_ota(cfg_ota_t *val){
 		return -1;
 	}
 	if (memcmp(&cfg_cache.ota, val, sizeof(cfg_ota_t))){
-		int ret = cfg_save_item(CFG_IDX_OTA, val, sizeof(cfg_ota_t));
+		ret = cfg_save_item(CFG_IDX_OTA, val, sizeof(cfg_ota_t));
 		if (ret < 0){
 			return -1;
 		}
@@ -138,7 +138,7 @@ int cfg_update_ota(cfg_ota_t *val){
 	return 0;
 }
 int cfg_get_mb_addr(uint8_t *result){
-	int ret = 0;
+	//int ret = 0;
 	if (!result){
 		return -1;
 	}
@@ -160,7 +160,7 @@ int cfg_update_mb_addr(uint8_t val){
 		return -1;
 	}
 	if (memcmp(&cfg_cache.mb_addr, &val, sizeof(uint8_t))){
-		int ret = cfg_save_item(CFG_IDX_MB_ADDR, &val, sizeof(uint8_t));
+		ret = cfg_save_item(CFG_IDX_MB_ADDR, &val, sizeof(uint8_t));
 		if (ret < 0){
 			return -1;
 		}
@@ -181,12 +181,13 @@ int config_get_sn(char *out){
 }
 
 int config_update_sn(char *sn){
+	int ret = 0;
 	if (!cfg_is_init()){
 		LOG_ERROR(TAG, "%s:not init", __FUNCTION__);
 		return -1;
 	}
 	if (strncmp(sn, (char *)cfg_cache.sn, CFG_SN_LEN)){
-		int ret = cfg_save_item(CFG_IDX_SN, sn, CFG_SN_LEN);
+		ret = cfg_save_item(CFG_IDX_SN, sn, CFG_SN_LEN);
 		if (ret < 0){
 			return -1;
 		}
@@ -217,7 +218,7 @@ static int cfg_item_init(cfg_item_t *item){
 			LOG_INFO(TAG, "%04X not found. write new one.", item->key);
 			ret = st_write_item(item->key, item->content, item->size);
 			if (ret < 0){
-				LOG_ERROR(TAG, "fail to save %s.", item->key);
+				LOG_ERROR(TAG, "fail to save %04X.", item->key);
 				return -1;
 			}
 		}else{
@@ -228,6 +229,7 @@ static int cfg_item_init(cfg_item_t *item){
 	if (item->decode_func){
 		item->decode_func(item);
 	}
+	return 0;
 }
 
 int cfg_init(){
