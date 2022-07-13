@@ -388,7 +388,9 @@ static int uart_io_init(uart_num_t num, uart_config_t * config){
 			ctx->pin_alter_mask);
 	}
 	if (config->rs485_en){
-		gpio_set_direction(config->io_485en, GPIO_OUTPUT_PP_20mA);
+//		gpio_set_direction(config->io_485en, GPIO_OUTPUT_PP_20mA);
+        gpio_set_direction(config->io_485en, GPIO_OUTPUT_PP_5mA);
+
 		gpio_set_level(config->io_485en, !config->level_485tx);
 	}
 	return 0;

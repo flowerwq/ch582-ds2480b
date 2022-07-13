@@ -93,10 +93,7 @@ int main()
 	PRINT("app start ...\r\n");
 	uuid_dump();
 
-    uart_config_t cfg_uart0 = UART_DEFAULT_CONFIG();
-    cfg_uart0.baudrate = 9600;
-    cfg_uart0.remap=1;
-    uart_init(UART_NUM_0,&cfg_uart0);
+    
 
 	OLED_Init();
 	OLED_ShowPicture(32, 0, 64, 64, (uint8_t *)smail_64x64_1, 1);
@@ -105,9 +102,8 @@ int main()
 	display_init();
 	cfg_init();
 	sensor_init();
-    DS2480B_Detect();
-//    mdc02_range(0, 30);
-    
+
+    DS2480B_Detect();    
     find_device_config();
 	while(worktime_since(worktime) < 1000){
 		__nop();
@@ -124,7 +120,7 @@ int main()
 	PRINT("main loop start ...\r\n");
     while(1){
 		OLED_Refresh();
-		dev_type_choose_function();
+		
 //		if (worktime_since(worktime) >= 1000){
 //			worktime = worktime_get();
 //			if ((worktime / 1000) % 2){
@@ -137,47 +133,3 @@ int main()
 	}
 }
 
-///*********************************************************************
-// * @fn      UART1_IRQHandler
-// *
-// * @brief   UART1中断函数
-// *
-// * @return  none
-// */
-//__INTERRUPT
-//__HIGH_CODE
-//void UART1_IRQHandler(void)
-//{
-//    volatile uint8_t i;
-//
-//    switch(UART1_GetITFlag())
-//    {
-//        case UART_II_LINE_STAT: // 线路状态错误
-//        {
-//            UART1_GetLinSTA();
-//            break;
-//        }
-//
-//        case UART_II_RECV_RDY: // 数据达到设置触发点
-//            for(i = 0; i != trigB; i++)
-//            {
-//                RxBuff[i] = UART1_RecvByte();
-//                UART1_SendByte(RxBuff[i]);
-//            }
-//            break;
-//
-//        case UART_II_RECV_TOUT: // 接收超时，暂时一帧数据接收完成
-//            i = UART1_RecvString(RxBuff);
-//            UART1_SendString(RxBuff, i);
-//            break;
-//
-//        case UART_II_THR_EMPTY: // 发送缓存区空，可继续发送
-//            break;
-//
-//        case UART_II_MODEM_CHG: // 只支持串口0
-//            break;
-//
-//        default:
-//            break;
-//    }
-//}

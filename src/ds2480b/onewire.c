@@ -51,11 +51,10 @@ bool OWReset(void)
 //   for(int i=0; i<2; i++){
 //       PRINT("%2x \r\n",sendpacket[i]);
 //   }
-    LOG_DEBUG(TAG, "%d bytes send from reset:", sendlen);
-
-    log_buffer_hex(TAG, sendpacket, sendlen, LOG_LEVEL_INFO);
+//    LOG_DEBUG(TAG, "%d bytes send from reset:", sendlen);
+//
+//    log_buffer_hex(TAG, sendpacket, sendlen, LOG_LEVEL_INFO);
    // flush the buffers
-//   FlushCOM();
    uart_rx_flush(UART_NUM_0);
    uart_tx_flush(UART_NUM_0);
 
@@ -67,9 +66,9 @@ bool OWReset(void)
 //                for(int i = 0; i < 1; i++){
 //                    PRINT("readbuffer:%2x \r\n",readbuffer[i]);
 //                }
-                 LOG_DEBUG(TAG, "%d bytes read from reset:", 1);
-                 log_buffer_hex(TAG, readbuffer, 1, LOG_LEVEL_INFO); 
-                
+//                 LOG_DEBUG(TAG, "%d bytes read from reset:", 1);
+//                 log_buffer_hex(TAG, readbuffer, 1, LOG_LEVEL_INFO); 
+//                
                 if(ds2480_state_t.ALARM_RESET_COMPLIANCE)
                  {
                     DelayMs(5); // delay 5 ms to give DS1994 enough time
@@ -86,7 +85,7 @@ bool OWReset(void)
             }
             
    }
-   DelayUs(4096);                   
+//   DelayUs(4096);                   
    // an error occured so re-sync with DS2480B
    DS2480B_Detect();
    return FALSE;
@@ -163,16 +162,16 @@ unsigned char OWTouchBit(unsigned char sendbit)
    uart_rx_flush(UART_NUM_0);
    // send the packet
 
-    LOG_DEBUG(TAG, "%d bytes send from OWTouchBit:", sendlen);
-    log_buffer_hex(TAG, sendpacket, sendlen, LOG_LEVEL_INFO); 
+//    LOG_DEBUG(TAG, "%d bytes send from OWTouchBit:", sendlen);
+//    log_buffer_hex(TAG, sendpacket, sendlen, LOG_LEVEL_INFO); 
     if (0 == uart_send(UART_NUM_0,sendpacket,sendlen))
      {
         // read back the response
         if (1 == uart_read(UART_NUM_0,readbuffer,1,1) )
         {
-
-            LOG_DEBUG(TAG, "%d bytes read from OWTouchBit:", 1);
-            log_buffer_hex(TAG, readbuffer, 1, LOG_LEVEL_INFO);
+//
+//            LOG_DEBUG(TAG, "%d bytes read from OWTouchBit:", 1);
+//            log_buffer_hex(TAG, readbuffer, 1, LOG_LEVEL_INFO);
            // interpret the response
            if (((readbuffer[0] & 0xE0) == 0x80) &&
                ((readbuffer[0] & RB_BIT_MASK) == RB_BIT_ONE)){
@@ -558,8 +557,8 @@ int OWSearch()
     //        PRINT("sendpack:%2x \r\n",sendpacket[i]);
     //   }
 
-    LOG_DEBUG(TAG, "%d bytes send from search:", sendlen);
-    log_buffer_hex(TAG, sendpacket, sendlen, LOG_LEVEL_INFO); 
+//    LOG_DEBUG(TAG, "%d bytes send from search:", sendlen);
+//    log_buffer_hex(TAG, sendpacket, sendlen, LOG_LEVEL_INFO); 
     // send the packet
     if (0 == uart_send(UART_NUM_0,sendpacket,sendlen))
     {
@@ -570,8 +569,8 @@ int OWSearch()
 //                PRINT("read:%2x \r\n",readbuffer[a]);
 //            }
 
-            LOG_DEBUG(TAG, "%d bytes read from search:", 17);
-            log_buffer_hex(TAG, readbuffer, 17, LOG_LEVEL_INFO); 
+//            LOG_DEBUG(TAG, "%d bytes read from search:", 17);
+//            log_buffer_hex(TAG, readbuffer, 17, LOG_LEVEL_INFO); 
 //          interpret the bit stream
              for (int i = 0; i < 64; i++)
              {
@@ -590,8 +589,8 @@ int OWSearch()
                 }
              }
            
-         LOG_DEBUG(TAG, "tem_rom:");
-         log_buffer_hex(TAG, search_device_t.ROM_NO, sizeof(search_device_t.ROM_NO), LOG_LEVEL_INFO);
+//         LOG_DEBUG(TAG, "tem_rom:");
+//         log_buffer_hex(TAG, search_device_t.ROM_NO, sizeof(search_device_t.ROM_NO), LOG_LEVEL_INFO);
          
          // do dowcrc
          search_device_t.crc8 = 0;
@@ -1112,14 +1111,14 @@ int DS2480B_Detect(void)
    uart_tx_flush(UART_NUM_0);
    uart_rx_flush(UART_NUM_0);
 
-    LOG_DEBUG(TAG, "%d bytes send from ds2480b_detect:",sendlen);
-    log_buffer_hex(TAG, sendpacket, sendlen, LOG_LEVEL_INFO);    
+//    LOG_DEBUG(TAG, "%d bytes send from ds2480b_detect:",sendlen);
+//    log_buffer_hex(TAG, sendpacket, sendlen, LOG_LEVEL_INFO);    
    // send the packet
    if(0 == uart_send(UART_NUM_0,sendpacket,sendlen)){
         if(5 == uart_read(UART_NUM_0,readbuffer,5,10)){
             
-            LOG_DEBUG(TAG, "%d bytes read from search:", 5);
-            log_buffer_hex(TAG, readbuffer, 5, LOG_LEVEL_INFO); 
+//            LOG_DEBUG(TAG, "%d bytes read from search:", 5);
+//            log_buffer_hex(TAG, readbuffer, 5, LOG_LEVEL_INFO); 
             if (((readbuffer[3] & 0xF1) == 0x00) &&
              ((readbuffer[3] & 0x0E) == ds2480_state_t.UBaud) &&
              ((readbuffer[4] & 0xF0) == 0x90) &&

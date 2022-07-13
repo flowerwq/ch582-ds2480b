@@ -2,11 +2,10 @@
 #define __MODBUS_IREGS_H__
 #include "stdint.h"
 #include "lightmodbus/lightmodbus.h"
-
+#include "liblightmodbus.h"
 typedef enum mb_ireg_addr{
 	MB_IREG_ADDR_BASE = 0,
-	MB_IREG_ADDR_TEMP = MB_IREG_ADDR_BASE,
-	MB_IREG_ADDR_RH,
+	MB_IREG_ADDR_MY18B20Z = MB_IREG_ADDR_BASE,
 	MB_IREG_ADDR_MAX,
 } mb_ireg_addr_t;
 

@@ -3,6 +3,11 @@
 #include "ds2480b/common.h"
 #include "ds2480b/onewire.h"
 #include "ds2480b/uart-ds2480.h"
+#include "modbus/iregs.h"
+#include "modbus/discrete_input.h"
+#include "worktime.h"
+
+
 
 /****偏置电容和反馈电容阵列权系数****/
 static const float COS_Factor[8] = {0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 40.0};
@@ -728,12 +733,11 @@ bool readcapconfigure(float *Coffset, float *Crange,int num)
 
 	return TRUE;
 }
-////
-/////**
+
+
 ////  * @brief  获取配置的量程电容数值（pF）
 ////  * @param  Crange：返回量程电容数值
 ////  * @retval 无
-////*/
 void getcfg_caprange(float *Crange,int num)
 {
 	uint8_t Cfb_cfg;
@@ -742,11 +746,11 @@ void getcfg_caprange(float *Crange,int num)
 	*Crange = cfbcfgtocaprange(Cfb_cfg);
 //	PRINT("cfbcfg to capcfb:%.4f\r\n",*Crange);
 }
-//
+
 ///* @brief  获取配置的偏置电容数值（pF）
 //  * @param  Coffset：偏置电容配置
 //  * @retval 无
-//*/
+
 void getcfg_capoffset(float *Coffset,int num)
 {	uint8_t Cos_cfg;
 
@@ -754,13 +758,11 @@ void getcfg_capoffset(float *Coffset,int num)
 	*Coffset = coscfgtocapoffset(Cos_cfg);
 //	PRINT("coscfg to capoffset:%.2f\r\n",*Coffset);
 }
-//
-////
+
 /////**
 ////  * @brief  将量程电容配置转换为对应的量程电容数值（pF）
 ////  * @param  fbCfg：量程电容配置
 ////  * @retval 对应量程电容的数值
-////*/
 float cfbcfgtocaprange(uint8_t fbCfg)
 {
 	uint8_t i;
@@ -775,12 +777,12 @@ float cfbcfgtocaprange(uint8_t fbCfg)
 	}
 	return (0.507/3.6) * Crange;
 }
-//
+
 /////**
 ////  * @brief  读量程电容配置寄存器内容
 ////  * @param  Cfb：量程配置寄存器低6位的内容
 ////  * @retval 状态
-////*/
+
 bool readcfbconfig(uint8_t *Cfb,int num)
 {
 	uint8_t scrb[sizeof(MDC02_SCRPARAMETERS)];
@@ -802,13 +804,12 @@ bool readcfbconfig(uint8_t *Cfb,int num)
 //	PRINT("read register cfb:%d\r\n",*Cfb);
 	return TRUE;;
 }
-//
-//
+
 ///**
 //  * @brief  将偏置电容配置转换为对应的偏置电容数值（pF）
 //  * @param  osCfg：偏置电容配置
 //  * @retval 对应偏置电容的数值
-//*/
+
 float coscfgtocapoffset(uint8_t osCfg)
 {
 	uint8_t i;
@@ -816,16 +817,17 @@ float coscfgtocapoffset(uint8_t osCfg)
 
 	for(i = 0; i < 8; i++)
 	{
-		if(osCfg & 0x01) Coffset += COS_Factor[i];{
-			osCfg >>= 1;
+		if(osCfg & 0x01){
+		    Coffset += COS_Factor[i];
 		}
+		osCfg >>= 1;
+
 	}
 
 	return Coffset;
 }
 
-//
-////
+
 /**
   * @brief  读偏置电容配置寄存器内容
   * @param  Coffset：偏置配置寄存器有效位的内容
@@ -859,11 +861,6 @@ bool mdc02_writeparameters_skiprom(uint8_t *scr, int num)
 {
     int16_t i;
 
-//    if(onewire_resetcheck() != 0){
-//		return FALSE;
-//	}
-//
-//    read_command();
 	send_matchrom(device_t.ROMID,num);
 
     OWWriteByte(WRITE_PARAMETERS);
@@ -878,12 +875,6 @@ bool mdc02_writeparameters_skiprom(uint8_t *scr, int num)
 bool mdc02_readparameters_skiprom(uint8_t *scr,int num)
 {
     int16_t i;
-//
-//    if(onewire_resetcheck() != 0){
-//		return FALSE;
-//	}
-//
-//    read_command();
 	send_matchrom(device_t.ROMID,num);
     OWWriteByte(READ_PARAMETERS );
 
@@ -935,9 +926,9 @@ bool mdc02_writescratchpadext_skiprom(uint8_t *scr)
 {
     int16_t i;
 
-    if(onewire_resetcheck() != 0)
-			return FALSE;
-	read_command();
+    if(!OWReset()){
+        return FALSE;
+    }
     OWWriteByte(0x77);
 
 	for(i=0; i<sizeof(MDC02_SCRATCHPADEXT)-1; i++)
@@ -1038,11 +1029,6 @@ bool setcapchannel(uint8_t channel,int num)
 
 bool convertcap(int num)
 {
-//	if(onewire_resetcheck() !=  0){
-//		return FALSE;
-//    }
-//
-//    read_command();
 	send_matchrom(device_t.ROMID,num);
    //WWDG_SetCounter(0);
 
@@ -1456,14 +1442,16 @@ int read_temp(int num){
 		fTemp=my18b20_output_to_temp((int16_t)iTemp,num);
 		PRINT("Array_index= %d ,T= %3.3f \r\n",num, fTemp);
 		PRINT("\r\n");
-//		modbus_ireg_update(MB_IREG_ADDR_MY18B20Z,fTemp);
+		modbus_ireg_update(MB_IREG_ADDR_MY18B20Z,fTemp*10);
 	}
 	else
 	{
 		PRINT("\r\n No my18b20");
 	}
 //    WWDG_SetCounter(0);
-	DelayUs(990);
+    DelayUs(10);
+
+//	DelayUs(990);
 //    WWDG_SetCounter(0);
 				
 	return 1;
@@ -1483,27 +1471,52 @@ static int read_caps(int num)
 	float fcap1, fcap2, fcap3, fcap4; uint16_t iTemp, icap1, icap[1];
 	uint8_t status, cfg;
 	uint8_t status_wids=0;
-	
+	uint32_t worktime__convertcap_before = 0,worktime_convertcap__after = 0;
+	uint32_t worktime__setcapchannel_before = 0,worktime_setcapchannel__after = 0;
+	uint32_t worktime__readstatusconfig_before = 0,worktime_readstatusconfig_after = 0;
+    uint32_t worktime__readcapconfigure_before = 0,worktime_readcapconfigure_after = 0;
+    uint32_t worktime__readcap1_before = 0,worktime_readcap1_after = 0;
+     uint32_t worktime__readcap2_before = 0,worktime_readcap2_after = 0;
+     
+    worktime__setcapchannel_before =worktime_get();
 	setcapchannel(CAP_CH1CH2_SEL,num);
+
+    worktime_setcapchannel__after = worktime_since(worktime__setcapchannel_before);
+    PRINT("setcapchannel worktime:%d\r\n",(int)worktime_setcapchannel__after);
    //WWDG_SetCounter(0);
+    worktime__readstatusconfig_before =worktime_get();
 	readstatusconfig((uint8_t *)&status, (uint8_t *)&cfg,num);
+    worktime_readstatusconfig_after = worktime_since(worktime__readstatusconfig_before);
+    PRINT("readstatusconfig worktime:%d\r\n",(int)worktime_readstatusconfig_after);
    //WWDG_SetCounter(0);
-	
+	worktime__convertcap_before = worktime_get();
 	if(convertcap(num) == FALSE)
 	{
 		PRINT("No MDC02\r\n");
 	}
 	else{
-		WWDG_SetCounter(0 );
+//		WWDG_SetCounter(0 );
 		DelayUs(15);
+        worktime__readcapconfigure_before = worktime_get();
 		readcapconfigure(&onewire_dev.CapCfg_offset, &onewire_dev.CapCfg_range,num);
+        worktime_readcapconfigure_after = worktime_since(worktime__readcapconfigure_before);
+        PRINT("readcapconfigure worktime:%d\r\n",(int)worktime_readcapconfigure_after);
+        
 //		PRINT("%f  %.5f\r\n",onewire_dev.CapCfg_offset,onewire_dev.CapCfg_range);
 		readstatusconfig((uint8_t *)&status, (uint8_t *)&cfg,num);
 
+        worktime__readcap1_before = worktime_get();
 		readtempcap1(&iTemp, &icap1,num);
+        worktime_readcap1_after = worktime_since(worktime__readcap1_before);
+        PRINT("readcap1 worktime:%d\r\n",(int)worktime_readcap1_after);
+
+        worktime__readcap2_before = worktime_get();
 		if(readcapc2c3c4(&icap[0],num) == FALSE){
 			PRINT("read cap2 error");
 		}
+        worktime_readcap2_after = worktime_since(worktime__readcap2_before);
+        PRINT("readcap2 worktime:%d\r\n",(int)worktime_readcap2_after);
+        
 		fcap1 = mdc02_outputtocap(icap1, onewire_dev.CapCfg_offset, onewire_dev.CapCfg_range);
 		fcap2 = mdc02_outputtocap(icap[0], onewire_dev.CapCfg_offset, onewire_dev.CapCfg_range);
 		PRINT("Array_index= %d, C1=%4d , %6.3f pf  ,C2=%4d, %6.3f pf , S=%02X   C=%02X\r\n",num, icap1, fcap1, icap[0], fcap2, status, cfg);
@@ -1511,12 +1524,16 @@ static int read_caps(int num)
 		status_wids=judge_status(fcap1,fcap2);
 		PRINT("\r\n");
 		OLED_ShowNum(82, 16, status_wids, 1, 16, 1);
+        
 		OLED_Refresh(0);
-//		modbus_di_update(MB_DI_ADDR_WIDS,status_wids);
+		modbus_di_update(MB_DI_ADDR_WIDS,status_wids);
 		
-		}
+	}
+    worktime_convertcap__after = worktime_since(worktime__convertcap_before);
+    PRINT("convertcap worktime:%d\r\n",(int)worktime_convertcap__after);
+//	DelayUs(990);
+    DelayUs(10);
 
-	DelayUs(990);
 	return 1;		
 }
 ////
@@ -1545,7 +1562,9 @@ static int read_tempc1(int num)
 		PRINT("\r\n No MDC02");
 	}
 //    WWDG_SetCounter(0);
-	DelayUs(990);
+    DelayUs(10);
+
+//	DelayUs(990);
 //    WWDG_SetCounter(0);
 	return 1;		
 }
@@ -1582,6 +1601,9 @@ bool read_tempwaiting(uint16_t *iTemp,int num)
 void dev_type_choose_function(){
 	uint16_t dev_num;
 	volatile int num_i;
+    uint32_t worktime_read_tmpc1_before = 0,worktime_read_tmpc1_after = 0;
+    uint32_t worktime_read_caps_before = 0,worktime_read_caps_after = 0;
+    uint32_t worktime_read_temp_before = 0,worktime_read_temp_after = 0;
 	dev_num=find_device();
 	for(num_i = 0;num_i < dev_num;num_i++){
 		romid_crc(num_i);
@@ -1589,14 +1611,25 @@ void dev_type_choose_function(){
 		if(device_t.type == MDC02){
 //           //WWDG_SetCounter(0);
 			mdc02_range(0, 30, num_i);
+            worktime_read_tmpc1_before = worktime_get();
 			read_tempc1(num_i);
-            //WWDG_SetCounter(0);   
+            worktime_read_tmpc1_after = worktime_since(worktime_read_tmpc1_before);
+            PRINT("read_tempc1 worktime:%d\r\n",(int)worktime_read_tmpc1_after);
+            //WWDG_SetCounter(0); 
+            worktime_read_caps_before = worktime_get();
 			read_caps(num_i);
+            worktime_read_caps_after = worktime_since(worktime_read_caps_before);
+            PRINT("read_caps worktime:%d\r\n",(int)worktime_read_caps_after);
 //            WWDG_SetCounter(0);
 		}
 		else{
 //           //WWDG_SetCounter(0);
+            worktime_read_temp_before = worktime_get();
+
 			read_temp(num_i);
+            worktime_read_temp_after = worktime_since(worktime_read_temp_before);
+            PRINT("read_temp worktime:%d\r\n",(int)worktime_read_temp_after);
+
 //           //WWDG_SetCounter(0);
 		}
 	}

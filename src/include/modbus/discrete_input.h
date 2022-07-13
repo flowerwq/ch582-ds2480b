@@ -1,8 +1,9 @@
 #ifndef __MB_DISCRETE_INPUT__
 #define __MB_DISCRETE_INPUT__
-
+#include "liblightmodbus.h"
 typedef enum mb_di_addr{
 	MB_DI_ADDR_BASE = 0,
+    MB_DI_ADDR_WIDS = MB_DI_ADDR_BASE,
 	MB_DI_ADDR_MAX
 } mb_di_addr_t;
 

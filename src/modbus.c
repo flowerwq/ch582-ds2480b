@@ -194,37 +194,37 @@ static LIGHTMODBUS_WARN_UNUSED ModbusError modbus_slave_allocator(
 
 
 ///*********************************************************************
-// * @fn      UART2_IRQHandler
+// * @fn      UART3_IRQHandler
 // *
-// * @brief   UART2中断函数
+// * @brief   UART3中断函数
 // *
 // * @return  none
 // */
 //__INTERRUPT
 //__HIGH_CODE
-//void UART2_IRQHandler(void)
+//void UART3_IRQHandler(void)
 //{
 //    volatile uint8_t d;
 //
-//    switch(UART2_GetITFlag())
+//    switch(UART3_GetITFlag())
 //    {
 //        case UART_II_LINE_STAT: // 线路状态错误
 //        {
-//            UART2_GetLinSTA();
+//            UART3_GetLinSTA();
 //            break;
 //        }
 //
 //        case UART_II_RECV_RDY: // 数据达到设置触发点
-//            while(R8_UART2_RFC)
+//            while(R8_UART3_RFC)
 //            {
-//                slave_recv(UART2_RecvByte());
+//                slave_recv(UART3_RecvByte());
 //            }
 //            break;
 //
 //        case UART_II_RECV_TOUT: // 接收超时，暂时一帧数据接收完成
-//            while(R8_UART2_RFC)
+//            while(R8_UART3_RFC)
 //            {
-//                slave_recv(UART2_RecvByte());
+//                slave_recv(UART3_RecvByte());
 //            }
 //            break;
 //
@@ -239,12 +239,18 @@ static LIGHTMODBUS_WARN_UNUSED ModbusError modbus_slave_allocator(
 //    }
 //}
 
+
 int modbus_slave_uart_init(mb_slave_ctx_t *slave_ctx){
 	uart_config_t cfg = UART_DEFAULT_CONFIG();
+    cfg.rs485_en = 1;
+    cfg.io_485en = GPIO_NUM_PB_18;
+    cfg.level_485tx = 0;
 	cfg.baudrate = slave_ctx->baudrate;
 	cfg.recv_cb = slave_recv;
 	cfg.user_ctx = slave_ctx;
 	uart_init(HOST_UART, &cfg);
+
+    
 	
 	return 0;
 }
@@ -252,6 +258,8 @@ int modbus_slave_uart_send(uint8_t *buf, int len){
 	if (!buf || len <= 0){
 		return -1;
 	}
+    LOG_DEBUG(TAG, "%d bytes send:", len);
+    log_buffer_hex(TAG, buf, len, LOG_LEVEL_DEBUG);
 	uart_send(HOST_UART, buf, len);
 	return 0;
 }
@@ -293,6 +301,8 @@ int modbus_sa_ctrl(int enable){
 void modbus_init(mb_callback_t *callback){
 	mb_timer_ref = 0;
 	modbus_regs_init();
+    modbus_iregs_init();
+    mb_di_init();
 	if (modbus_slave_init(callback) < 0){
 		LOG_ERROR(TAG, "slave init failed.");
 		return;
@@ -301,7 +311,7 @@ void modbus_init(mb_callback_t *callback){
 }
 
 void modbus_deinit(){
-	UART2_INTCfg(DISABLE, RB_IER_RECV_RDY | RB_IER_LINE_STAT);
+	UART3_INTCfg(DISABLE, RB_IER_RECV_RDY | RB_IER_LINE_STAT);
 	MB_TIMER_STOP();
 	modbusSlaveDestroy(&mb_slave_ctx.slave);
 	memset(&mb_slave_ctx, 0, sizeof(mb_slave_ctx_t));
@@ -316,14 +326,14 @@ void modbus_frame_check(){
 	if (MODBUS_S_RECV_FINISH == mb_slave_ctx.status){
 		mb_slave_ctx.lasttime_recv = worktime_get()/1000;
 		if (!mb_slave_ctx.flag_frame_err){
+            LOG_DEBUG(TAG, "%d bytes recv:", mb_slave_ctx.req_len);
+            log_buffer_hex(TAG, mb_slave_ctx.req_buf, mb_slave_ctx.req_len, 
+                LOG_LEVEL_DEBUG);
 			err = modbusParseRequestRTU( &mb_slave_ctx.slave, 
 				mb_slave_ctx.address, mb_slave_ctx.req_buf, mb_slave_ctx.req_len);
 			if (MODBUS_OK != modbusGetErrorCode(err)){
 				LOG_ERROR(TAG, "modbus parse err(%02x:%s)", 
 					modbusGetErrorCode(err), modbusErrorStr(modbusGetErrorCode(err)));
-				LOG_DEBUG(TAG, "rx:");
-				log_buffer_hex(TAG, mb_slave_ctx.req_buf, mb_slave_ctx.req_len, 
-					LOG_LEVEL_DEBUG);
 			}
 			if (MODBUS_ERROR_ADDRESS != modbusGetErrorCode(err)){
 				if (modbusSlaveGetResponseLength(&mb_slave_ctx.slave) > 0){

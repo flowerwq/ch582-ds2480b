@@ -6,6 +6,9 @@
 #include "appinfo.h"
 #include "utils.h"
 #include "uid.h"
+#include "uart.h"
+#include "gpio.h"
+#include "ds2480b/uart-ds2480.h"
 
 #define TAG "SENSOR"
 
@@ -107,19 +110,29 @@ int sensor_init(){
 	}
 	memset(&sensor_ctx, 0, sizeof(sensor_ctx_t));
 	mb_init();
+
+    uart_config_t cfg_uart0 = UART_DEFAULT_CONFIG();
+    cfg_uart0.baudrate = 9600;
+    cfg_uart0.remap=1;
+    uart_init(UART_NUM_0,&cfg_uart0);
+    
 	sensor_ctx.flag_init = 1;
 	return 0;
 }
 
 
 int sensor_run(){
-	uint32_t worktime = 0;
+	uint32_t worktime = 0,worktime_dev_before = 0,worktime_dev_after = 0;
 	modbus_run();
 	worktime = worktime_get()/1000;
 	if (worktime != sensor_ctx.worktime){
 		sensor_ctx.worktime = worktime;
-		modbus_reg_update(MB_REG_ADDR_WORKTIME_H, (worktime / 1000) >> 16);
-		modbus_reg_update(MB_REG_ADDR_WORKTIME_L, (worktime / 1000));
+        worktime_dev_before =worktime_get();
+        dev_type_choose_function();
+        worktime_dev_after = worktime_since(worktime_dev_before);
+        PRINT("dev_type_choose_function worktime:%d\r\n",(int)worktime_dev_after);
+		modbus_reg_update(MB_REG_ADDR_WORKTIME_H, (worktime) >> 16);
+		modbus_reg_update(MB_REG_ADDR_WORKTIME_L, (worktime));
 	}
 	return 0;
 }
