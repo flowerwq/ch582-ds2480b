@@ -43,26 +43,5 @@ int bitacc(int op, int state, int loc, uint8_t *buf)
    }
 }
 
-int find_device(){
-    volatile int i;
-    volatile int cnt = 0;
-    volatile int rslt =0;
-    extern unsigned char ROM_NO[8] ;
-
-    PRINT("\nFIND ALL\r\n");
-
-    rslt = OWFirst();
-    while (rslt)
-    {
-      // print device found
-      for (i = 0; i < 8; i++){
-         PRINT("%02X ", ROM_NO[i]);
-      }
-      PRINT("序号为： %d\r\n",++cnt);
-
-      rslt = OWNext();
-    }
-    return 0;
-}
 
 

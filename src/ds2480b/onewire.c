@@ -9,20 +9,11 @@
 #include <stdbool.h>
 #define TAG "onewire"
 
-// search state
-unsigned char ROM_NO[8];
-int LastDiscrepancy;
-int LastFamilyDiscrepancy;
-int LastDeviceFlag;
-unsigned char crc8;
 
 
-// DS2480B state
-int ULevel; // 1-Wire level
-int UBaud;  // baud rate
-int UMode;  // command or data mode state
-int USpeed; // 1-Wire communication speed
-int ALARM_RESET_COMPLIANCE = FALSE; // flag for DS1994/DS2404 'special' reset
+search_device search_device_t;
+ds2480_state ds2480_state_t;
+
 
 //---------------------------------------------------------------------------
 //-------- Basic 1-Wire functions
@@ -44,19 +35,19 @@ bool OWReset(void)
 {
    uint8_t readbuffer[10]={0},sendpacket[10]={0};
    volatile uint8_t sendlen=0;
-
+   ds2480_state_t.ALARM_RESET_COMPLIANCE = FALSE;
    // make sure normal level
    OWLevel(MODE_NORMAL);
 
    // check for correct mode
-   if (UMode != MODSEL_COMMAND)
+   if (ds2480_state_t.UMode != MODSEL_COMMAND)
    {
-      UMode = MODSEL_COMMAND;
+      ds2480_state_t.UMode = MODSEL_COMMAND;
       sendpacket[sendlen++] = MODE_COMMAND;
    }
-//   USpeed=SPEEDSEL_FLEX;
+//   ds2480_state_t.USpeed=SPEEDSEL_FLEX;
    // construct the command
-   sendpacket[sendlen++] = (unsigned char)(CMD_COMM | FUNCTSEL_RESET | USpeed);
+   sendpacket[sendlen++] = (unsigned char)(CMD_COMM | FUNCTSEL_RESET | ds2480_state_t.USpeed);
 //   for(int i=0; i<2; i++){
 //       PRINT("%2x \r\n",sendpacket[i]);
 //   }
@@ -79,7 +70,7 @@ bool OWReset(void)
                  LOG_DEBUG(TAG, "%d bytes read from reset:", 1);
                  log_buffer_hex(TAG, readbuffer, 1, LOG_LEVEL_INFO); 
                 
-                if(ALARM_RESET_COMPLIANCE)
+                if(ds2480_state_t.ALARM_RESET_COMPLIANCE)
                  {
                     DelayMs(5); // delay 5 ms to give DS1994 enough time
 //                    FlushCOM();
@@ -124,6 +115,19 @@ unsigned char OWReadBit(void)
    return OWTouchBit(0x01);
 }
 
+static int OWRead2Bits()
+{
+	uint8_t i, dq,data = 0;
+	for(i=0; i<2; i++)
+	{
+	    data = data << 1;
+		dq = OWReadBit();
+		data |= 0x01 ;
+	}
+
+	return data;
+}
+
 //--------------------------------------------------------------------------
 // Send 1 bit of communication to the 1-Wire Net and return the
 // result 1 bit read from the 1-Wire Net.  The parameter 'sendbit'
@@ -144,19 +148,19 @@ unsigned char OWTouchBit(unsigned char sendbit)
    OWLevel(MODE_NORMAL);
 
    // check for correct mode
-   if (UMode != MODSEL_COMMAND)
+   if (ds2480_state_t.UMode != MODSEL_COMMAND)
    {
-      UMode = MODSEL_COMMAND;
+      ds2480_state_t.UMode = MODSEL_COMMAND;
       sendpacket[sendlen++] = MODE_COMMAND;
    }
 
    // construct the command
    sendpacket[sendlen] = (sendbit != 0) ? BITPOL_ONE : BITPOL_ZERO;
-   sendpacket[sendlen++] |= CMD_COMM | FUNCTSEL_BIT | USpeed;
+   sendpacket[sendlen++] |= CMD_COMM | FUNCTSEL_BIT | ds2480_state_t.USpeed;
 
    // flush the buffers
-//   FlushCOM();
-
+   uart_tx_flush(UART_NUM_0);
+   uart_rx_flush(UART_NUM_0);
    // send the packet
 
     LOG_DEBUG(TAG, "%d bytes send from OWTouchBit:", sendlen);
@@ -230,9 +234,9 @@ unsigned char OWTouchByte(unsigned char sendbyte)
    OWLevel(MODE_NORMAL);
 
    // check for correct mode
-   if (UMode != MODSEL_DATA)
+   if (ds2480_state_t.UMode != MODSEL_DATA)
    {
-      UMode = MODSEL_DATA;
+      ds2480_state_t.UMode = MODSEL_DATA;
       sendpacket[sendlen++] = MODE_DATA;
    }
 
@@ -245,7 +249,6 @@ unsigned char OWTouchByte(unsigned char sendbyte)
    }
 
    // flush the buffers
-//   FlushCOM();
     uart_tx_flush(UART_NUM_0);
     uart_rx_flush(UART_NUM_0);
    // send the packet
@@ -292,9 +295,9 @@ int OWBlock(unsigned char *tran_buf, int tran_len)
 
    // construct the packet to send to the DS2480B
    // check for correct mode
-   if (UMode != MODSEL_DATA)
+   if (ds2480_state_t.UMode != MODSEL_DATA)
    {
-      UMode = MODSEL_DATA;
+      ds2480_state_t.UMode = MODSEL_DATA;
       sendpacket[sendlen++] = MODE_DATA;
    }
 
@@ -339,9 +342,9 @@ int OWBlock(unsigned char *tran_buf, int tran_len)
 int OWFirst()
 {
    // reset the search state
-   LastDiscrepancy = 0;
-   LastDeviceFlag = FALSE;
-   LastFamilyDiscrepancy = 0;
+   search_device_t.LastDiscrepancy = 0;
+   search_device_t.LastDeviceFlag = FALSE;
+   search_device_t.LastFamilyDiscrepancy = 0;
 
    return OWSearch();
 }
@@ -368,15 +371,16 @@ int OWVerify()
    int i,rslt,ld_backup,ldf_backup,lfd_backup;
 
    // keep a backup copy of the current state
-   for (i = 0; i < 8; i++)
-      rom_backup[i] = ROM_NO[i];
-   ld_backup = LastDiscrepancy;
-   ldf_backup = LastDeviceFlag;
-   lfd_backup = LastFamilyDiscrepancy;
+   for (i = 0; i < 8; i++){
+      rom_backup[i] = search_device_t.ROM_NO[i];
+   }
+   ld_backup = search_device_t.LastDiscrepancy;
+   ldf_backup = search_device_t.LastDeviceFlag;
+   lfd_backup = search_device_t.LastFamilyDiscrepancy;
 
    // set search to find the same device
-   LastDiscrepancy = 64;
-   LastDeviceFlag = FALSE;
+   search_device_t.LastDiscrepancy = 64;
+   search_device_t.LastDeviceFlag = FALSE;
 
    if (OWSearch())
    {
@@ -384,22 +388,24 @@ int OWVerify()
       rslt = TRUE;
       for (i = 0; i < 8; i++)
       {
-         if (rom_backup[i] != ROM_NO[i])
+         if (rom_backup[i] != search_device_t.ROM_NO[i])
          {
             rslt = FALSE;
             break;
          }
       }
    }
-   else
+   else{
      rslt = FALSE;
+   }
 
    // restore the search state 
-   for (i = 0; i < 8; i++)
-      ROM_NO[i] = rom_backup[i];
-   LastDiscrepancy = ld_backup;
-   LastDeviceFlag = ldf_backup;
-   LastFamilyDiscrepancy = lfd_backup;
+   for (i = 0; i < 8; i++){
+       search_device_t.ROM_NO[i] = rom_backup[i];
+   }
+   search_device_t.LastDiscrepancy = ld_backup;
+   search_device_t.LastDeviceFlag = ldf_backup;
+   search_device_t.LastFamilyDiscrepancy = lfd_backup;
 
    // return the result of the verify
    return rslt;
@@ -414,12 +420,13 @@ void OWTargetSetup(unsigned char family_code)
    int i;
 
    // set the search state to find SearchFamily type devices
-   ROM_NO[0] = family_code;
-   for (i = 1; i < 8; i++)
-      ROM_NO[i] = 0;
-   LastDiscrepancy = 64;
-   LastFamilyDiscrepancy = 0;
-   LastDeviceFlag = FALSE;
+   search_device_t.ROM_NO[0] = family_code;
+   for (i = 1; i < 8; i++){
+       search_device_t.ROM_NO[i] = 0;
+   }
+   search_device_t.LastDiscrepancy = 64;
+   search_device_t.LastFamilyDiscrepancy = 0;
+   search_device_t.LastDeviceFlag = FALSE;
 }
 
 //--------------------------------------------------------------------------
@@ -429,14 +436,14 @@ void OWTargetSetup(unsigned char family_code)
 void OWFamilySkipSetup()
 {
    // set the Last discrepancy to last family discrepancy
-   LastDiscrepancy = LastFamilyDiscrepancy;
+   search_device_t.LastDiscrepancy = search_device_t.LastFamilyDiscrepancy;
 
    // clear the last family discrpepancy
-   LastFamilyDiscrepancy = 0;
+   search_device_t.LastFamilyDiscrepancy = 0;
 
    // check for end of list
-   if (LastDiscrepancy == 0) 
-      LastDeviceFlag = TRUE;
+   if (search_device_t.LastDiscrepancy == 0) 
+      search_device_t.LastDeviceFlag = TRUE;
 
 }
 
@@ -457,152 +464,150 @@ void OWFamilySkipSetup()
 //                       are no devices on the 1-Wire Net.
 //
 //unsigned char ROM_NO[8];
-int OWSearch(void)
+int OWSearch()
 {
-   unsigned char last_zero,pos;
-   uint8_t readbuffer[20]={0},sendpacket[40]={0};
-   volatile uint8_t sendlen = 0;
-   int search_result = 0;
-   PRINT("search start:%s\r\n",__FUNCTION__);
-   // if the last call was the last one
-   if (LastDeviceFlag)
-   {
+    unsigned char last_zero,pos;
+    uint8_t readbuffer[20]={0},sendpacket[40]={0};
+    volatile uint8_t sendlen = 0;
+    int search_result = 0;
+//    PRINT("search start:%s\r\n",__FUNCTION__);
+    // if the last call was the last one
+    if (search_device_t.LastDeviceFlag)
+    {
       // reset the search
-      LastDiscrepancy = 0;
-      LastDeviceFlag = FALSE;
-      LastFamilyDiscrepancy = 0;
+      search_device_t.LastDiscrepancy = 0;
+      search_device_t.LastDeviceFlag = FALSE;
+      search_device_t.LastFamilyDiscrepancy = 0;
       return FALSE;
-   }
+    }
 
-   // reset the 1-wire
-   // if there are no parts on 1-wire, return FALSE
-   if (!OWReset())
-   {
+    // reset the 1-wire
+    // if there are no parts on 1-wire, return FALSE
+    if (!OWReset())
+    {
       // reset the search
-      LastDiscrepancy = 0;
-      LastFamilyDiscrepancy = 0;
+      search_device_t.LastDiscrepancy = 0;
+      search_device_t.LastFamilyDiscrepancy = 0;
       return FALSE;
-   }
+    }
 
-   // build the command stream
-   // call a function that may add the change mode command to the buff
-   // check for correct mode
-   if (UMode != MODSEL_DATA)
-   {
-      UMode = MODSEL_DATA;
+    // build the command stream
+    // call a function that may add the change mode command to the buff
+    // check for correct mode
+    if (ds2480_state_t.UMode != MODSEL_DATA)
+    {
+      ds2480_state_t.UMode = MODSEL_DATA;
       sendpacket[sendlen++] = MODE_DATA;
-   }
+    }
 
-   // search command
-   sendpacket[sendlen++] = 0xF0;
-   
-   // change back to command mode
-   UMode = MODSEL_COMMAND;
-   sendpacket[sendlen++] = MODE_COMMAND;
+    // search command
+    sendpacket[sendlen++] = 0xF0;
 
-   // search mode on
-   sendpacket[sendlen++] = (unsigned char)(CMD_COMM | FUNCTSEL_SEARCHON | USpeed);
+    // change back to command mode
+    ds2480_state_t.UMode = MODSEL_COMMAND;
+    sendpacket[sendlen++] = MODE_COMMAND;
 
-   // change back to data mode
-   UMode = MODSEL_DATA;
-   sendpacket[sendlen++] = MODE_DATA;
+    // search mode on
+    sendpacket[sendlen++] = (unsigned char)(CMD_COMM | FUNCTSEL_SEARCHON | ds2480_state_t.USpeed);
 
-   // set the temp Last Discrepancy to 0
-   last_zero = 0;
-   
-   // add the 16 bytes of the search
-   pos = sendlen;
-   for (int i = 0; i < 16; i++){
+    // change back to data mode
+    ds2480_state_t.UMode = MODSEL_DATA;
+    sendpacket[sendlen++] = MODE_DATA;
+
+    // set the temp Last Discrepancy to 0
+    last_zero = 0;
+
+    // add the 16 bytes of the search
+    pos = sendlen;
+    for (int i = 0; i < 16; i++){
       sendpacket[sendlen++] = 0;
-   }
+    }
 
-   // only modify bits if not the first search
-   if (LastDiscrepancy != 0)
-   {
+    // only modify bits if not the first search
+    if (search_device_t.LastDiscrepancy != 0)
+    {
       // set the bits in the added buffer
       for (int i = 0; i < 64; i++)
       {
          // before last discrepancy
-         if (i < (LastDiscrepancy - 1)){
-               bitacc(WRITE_FUNCTION,bitacc(READ_FUNCTION, 0, i,&ROM_NO[0]),(short)
-               (i * 2 + 1),&sendpacket[pos]);
+         if (i < (search_device_t.LastDiscrepancy - 1)){
+               bitacc(WRITE_FUNCTION,bitacc(READ_FUNCTION, 0, i,&search_device_t.ROM_NO[0]),
+                (short)(i * 2 + 1),&sendpacket[pos]);
          }
          // at last discrepancy
-         else if (i == (LastDiscrepancy - 1)){
+         else if (i == (search_device_t.LastDiscrepancy - 1)){
                 bitacc(WRITE_FUNCTION, 1, (short)(i * 2 + 1), &sendpacket[pos]);
          }
          // after last discrepancy so leave zeros
       }
-   }
+    }
 
-   // change back to command mode
-   UMode = MODSEL_COMMAND;
-   sendpacket[sendlen++] = MODE_COMMAND;
+    // change back to command mode
+    ds2480_state_t.UMode = MODSEL_COMMAND;
+    sendpacket[sendlen++] = MODE_COMMAND;
 
-   // search OFF command
-   sendpacket[sendlen++] = (unsigned char)(CMD_COMM | FUNCTSEL_SEARCHOFF | USpeed);
+    // search OFF command
+    sendpacket[sendlen++] = (unsigned char)(CMD_COMM | FUNCTSEL_SEARCHOFF | ds2480_state_t.USpeed);
 
-   // flush the buffers
-//   FlushCOM();
-   uart_rx_flush(UART_NUM_0);
-   uart_tx_flush(UART_NUM_0);
+    // flush the buffers
+    //   FlushCOM();
+    uart_rx_flush(UART_NUM_0);
+    uart_tx_flush(UART_NUM_0);
 
-//   for(int i = 0; i < sendlen; i++){
-//        PRINT("sendpack:%2x \r\n",sendpacket[i]);
-//   }
+    //   for(int i = 0; i < sendlen; i++){
+    //        PRINT("sendpack:%2x \r\n",sendpacket[i]);
+    //   }
 
-   LOG_DEBUG(TAG, "%d bytes send from search:", sendlen);
-   log_buffer_hex(TAG, sendpacket, sendlen, LOG_LEVEL_INFO); 
-   // send the packet
-   if (0 == uart_send(UART_NUM_0,sendpacket,sendlen))
-   {
+    LOG_DEBUG(TAG, "%d bytes send from search:", sendlen);
+    log_buffer_hex(TAG, sendpacket, sendlen, LOG_LEVEL_INFO); 
+    // send the packet
+    if (0 == uart_send(UART_NUM_0,sendpacket,sendlen))
+    {
       // read back the 17 byte response
       if (17 == uart_read(UART_NUM_0,readbuffer,17,1000))
        {
-//         for(int a = 0; a < 17; a++){
-//            PRINT("read:%2x \r\n",readbuffer[a]);
-//        }
+//             for(int a = 0; a < 17; a++){
+//                PRINT("read:%2x \r\n",readbuffer[a]);
+//            }
 
-         LOG_DEBUG(TAG, "%d bytes read from search:", 17);
-         log_buffer_hex(TAG, readbuffer, 17, LOG_LEVEL_INFO); 
-         // interpret the bit stream
-         for (int i = 0; i < 64; i++)
-         {
-            // get the ROM bit
-            bitacc(WRITE_FUNCTION,bitacc(READ_FUNCTION,0,(short)(i * 2 + 1),&readbuffer[1])
-            , i, &ROM_NO[0]);
-            // check LastDiscrepancy
-            if ((bitacc(READ_FUNCTION,0,(short)(i * 2),&readbuffer[1]) == 1) &&
-                (bitacc(READ_FUNCTION,0,(short)(i * 2 + 1),&readbuffer[1]) == 0))
-            {
-               last_zero = i + 1;
-               // check LastFamilyDiscrepancy
-               if (i < 8){
-                  LastFamilyDiscrepancy = i + 1;
-               }
-            }
-         }
-         
+            LOG_DEBUG(TAG, "%d bytes read from search:", 17);
+            log_buffer_hex(TAG, readbuffer, 17, LOG_LEVEL_INFO); 
+//          interpret the bit stream
+             for (int i = 0; i < 64; i++)
+             {
+                // get the ROM bit
+                bitacc(WRITE_FUNCTION,bitacc(READ_FUNCTION,0,(short)(i * 2 + 1),&readbuffer[1])
+                , i, &search_device_t.ROM_NO[0]);
+                // check search_device_t.LastDiscrepancy
+                if ((bitacc(READ_FUNCTION,0,(short)(i * 2),&readbuffer[1]) == 1) &&
+                    (bitacc(READ_FUNCTION,0,(short)(i * 2 + 1),&readbuffer[1]) == 0))
+                {
+                   last_zero = i + 1;
+                   // check search_device_t.LastFamilyDiscrepancy
+                   if (i < 8){
+                      search_device_t.LastFamilyDiscrepancy = i + 1;
+                   }
+                }
+             }
+           
          LOG_DEBUG(TAG, "tem_rom:");
-         log_buffer_hex(TAG, ROM_NO, sizeof(ROM_NO), LOG_LEVEL_INFO);
-
-//         if(docrc8(ROM_NO) == &ROM_NO){
-//            
-//         }
+         log_buffer_hex(TAG, search_device_t.ROM_NO, sizeof(search_device_t.ROM_NO), LOG_LEVEL_INFO);
+         
          // do dowcrc
-         crc8 = 0;
-//         for (int i = 0; i < 8; i++){
-//            docrc8(ROM_NO[i]);
-//         }
+         search_device_t.crc8 = 0;
+    //         for (int i = 0; i < 8; i++){
+    //            docrc8(ROM_NO[i]);
+    //         }
 
          // check results
-         if ((crc8 != 0) || (LastDiscrepancy == 63) || (ROM_NO[0] == 0))
+         if ((search_device_t.crc8 != 0) || (63 == search_device_t.LastDiscrepancy)
+            || (0 == search_device_t.ROM_NO[0]))
          {
             // error during search
             // reset the search
-            LastDiscrepancy = 0;
-            LastDeviceFlag = FALSE;
-            LastFamilyDiscrepancy = 0;
+            search_device_t.LastDiscrepancy = 0;
+            search_device_t.LastDeviceFlag = FALSE;
+            search_device_t.LastFamilyDiscrepancy = 0;
             search_result=FALSE;
             PRINT("find error\r\n");
          }
@@ -610,166 +615,39 @@ int OWSearch(void)
          else
          {
             // set the last discrepancy
-            LastDiscrepancy = last_zero;
+            search_device_t.LastDiscrepancy = last_zero;
 
             // check for last device
-            if (LastDiscrepancy == 0){
-               LastDeviceFlag = TRUE;
+            if (0 == search_device_t.LastDiscrepancy){
+               search_device_t.LastDeviceFlag = TRUE;
             }
 
             // copy the ROM to the buffer
-//            for (volatile int i = 0; i < 8; i++){
-//               ROM_NO[i] = ROM_NO[i];
-//            }
+    //            for (volatile int i = 0; i < 8; i++){
+    //               ROM_NO[i] = ROM_NO[i];
+    //            }
             search_result=TRUE;
          }
       }
-   }
+    }
 
-   
-   
-   // an error occured so re-sync with DS2480B
-   if(DS2480B_Detect()  == FALSE){
 
-       // reset the search
-       LastDiscrepancy = 0;
-       LastDeviceFlag = FALSE;
-       LastFamilyDiscrepancy = 0;
-       search_result=FALSE;      
 
-   }
-   PRINT("search finish:%s\r\n",__FUNCTION__);
-   return search_result;
+    // an error occured so re-sync with DS2480B
+    if(DS2480B_Detect()  == FALSE){
+
+    // reset the search
+    search_device_t.LastDiscrepancy = 0;
+    search_device_t.LastDeviceFlag = FALSE;
+    search_device_t.LastFamilyDiscrepancy = 0;
+    search_result=FALSE;      
+
+    }
+//    PRINT("search finish:%s\r\n",__FUNCTION__);
+    return search_result;
 }
 
 
-int onewire_search()
-{
-   int id_bit_number;
-   int last_zero, rom_byte_number, search_result;
-   int id_bit, cmp_id_bit;
-   unsigned char rom_byte_mask, search_direction;
-
-   // initialize for search
-   id_bit_number = 1;
-   last_zero = 0;
-   rom_byte_number = 0;
-   rom_byte_mask = 1;
-   search_result = 0;
-   crc8 = 0;
-
-   // if the last call was not the last one
-   if (!LastDeviceFlag){
-      // 1-Wire reset
-      if (!OWReset()){
-         // reset the search
-         LastDiscrepancy = 0;
-         LastDeviceFlag = FALSE;
-         LastFamilyDiscrepancy = 0;
-         return FALSE;
-      }
-
-      // issue the search command 
-      OWWriteByte(0xF0);  //搜寻总线上的所有从机设备
-
-      // loop to do the search
-      do
-      {
-         // read a bit and its complement
-         id_bit = OWReadBit();
-         cmp_id_bit = OWReadBit();
-
-         // check for no devices on 1-wire
-         if ((id_bit == 1) && (cmp_id_bit == 1)){
-		 	PRINT("no device exist\r\n");
-            break;
-		 }
-         else
-         {
-            // all devices coupled have 0 or 1
-            if (id_bit != cmp_id_bit){
-               search_direction = id_bit;  // bit write value for search
-            }
-            else
-            {
-               // if this discrepancy if before the Last Discrepancy
-               // on a previous next then pick the same as last time
-               if (id_bit_number < LastDiscrepancy){
-                  search_direction = ((ROM_NO[rom_byte_number] & rom_byte_mask) > 0);
-			   }
-               else{
-                  // if equal to last pick 1, if not then pick 0
-                  search_direction = (id_bit_number == LastDiscrepancy);
-			   }
-
-               // if 0 was picked then record its position in LastZero
-               if (search_direction == 0)
-               {
-                  last_zero = id_bit_number;
-
-                  // check for Last discrepancy in family
-                  if (last_zero < 9){
-                     LastFamilyDiscrepancy = last_zero;
-				  }
-               }
-            }
-
-            // set or clear the bit in the ROM byte rom_byte_number
-            // with mask rom_byte_mask
-            if (search_direction == 1){
-              ROM_NO[rom_byte_number] |= rom_byte_mask;
-            }
-            else{
-              ROM_NO[rom_byte_number] &= ~rom_byte_mask;
-            }
-
-            // serial number search direction write bit
-            OWWriteBit(search_direction);
-
-            // increment the byte counter id_bit_number
-            // and shift the mask rom_byte_mask
-            id_bit_number++;
-            rom_byte_mask <<= 1;
-
-            // if the mask is 0 then go to new SerialNum byte rom_byte_number and reset mask
-            if (rom_byte_mask == 0)
-            {
-                //crc8 = onewire_crc8(ROM_NO[rom_byte_number],sizeof(ROM_NO[rom_byte_number]));  // accumulate the CRC
-                rom_byte_number++;
-                rom_byte_mask = 1;
-            }
-         }
-      }
-      while(rom_byte_number < 8);  // loop until through all ROM bytes 0-7
-
-      // if the search was successful then
-      if (!((id_bit_number < 65) || (crc8 != 0)))	//id_bit_number  >= 65 && crc == 0
-      {
-         // search successful so set LastDiscrepancy,LastDeviceFlag,search_result
-         LastDiscrepancy = last_zero;
-
-         // check for last device
-         if (LastDiscrepancy == 0){
-            LastDeviceFlag = TRUE;
-		 }
-         
-         search_result = TRUE;
-      }
-   }
-
-   // if no device found then reset counters so next 'search' will be like a first
-   if (!search_result || !ROM_NO[0])
-   {
-      LastDiscrepancy = 0;
-      LastDeviceFlag = FALSE;
-      LastFamilyDiscrepancy = 0;
-      search_result = FALSE;
-	  PRINT("search finish.\r\n");
-	  __nop();
-   }
-
-   return search_result;
-}
 
 
 //---------------------------------------------------------------------------
@@ -785,66 +663,66 @@ int onewire_search()
 //
 // Returns:  current 1-Wire Net speed
 //
-//int OWSpeed(int new_speed)
-//{
-//   unsigned char sendpacket[5];
-//   unsigned char sendlen=0;
-//   unsigned char rt = FALSE;
-//
-//   // check if change from current mode
-//   if (((new_speed == MODE_OVERDRIVE) &&
-//        (USpeed != SPEEDSEL_OD)) ||
-//       ((new_speed == MODE_NORMAL) &&
-//        (USpeed != SPEEDSEL_FLEX)))
-//   {
-//      if (new_speed == MODE_OVERDRIVE)
-//      {
-//         // if overdrive then switch to 115200 baud
-//         if (DS2480B_ChangeBaud(MAX_BAUD) == MAX_BAUD)
-//         {
-//            USpeed = SPEEDSEL_OD;
-//            rt = TRUE;
-//         }
-//
-//      }
-//      else if (new_speed == MODE_NORMAL)
-//      {
-//         // else normal so set to 9600 baud
-//         if (DS2480B_ChangeBaud(PARMSET_9600) == PARMSET_9600)
-//         {
-//            USpeed = SPEEDSEL_FLEX;
-//            rt = TRUE;
-//         }
-//
-//      }
-//
-//      // if baud rate is set correctly then change DS2480B speed
-//      if (rt)
-//      {
-//         // check for correct mode
-//         if (UMode != MODSEL_COMMAND)
-//         {
-//            UMode = MODSEL_COMMAND;
-//            sendpacket[sendlen++] = MODE_COMMAND;
-//         }
-//
-//         // proceed to set the DS2480B communication speed
-//         sendpacket[sendlen++] = CMD_COMM | FUNCTSEL_SEARCHOFF | USpeed;
-//
-//         // send the packet
-//         if (!WriteCOM(sendlen,sendpacket))
-//         {
-//            rt = FALSE;
-//            // lost communication with DS2480B then reset
-//            DS2480B_Detect();
-//         }
-//      }
-//
-//   }
-//
-//   // return the current speed
-//   return (USpeed == SPEEDSEL_OD) ? MODE_OVERDRIVE : MODE_NORMAL;
-//}
+int OWSpeed(int new_speed)
+{
+   unsigned char sendpacket[5];
+   unsigned char sendlen=0;
+   unsigned char rt = FALSE;
+
+   // check if change from current mode
+   if (((new_speed == MODE_OVERDRIVE) &&
+        (ds2480_state_t.USpeed != SPEEDSEL_OD)) ||
+       ((new_speed == MODE_NORMAL) &&
+        (ds2480_state_t.USpeed != SPEEDSEL_FLEX)))
+   {
+      if (new_speed == MODE_OVERDRIVE)
+      {
+         // if overdrive then switch to 115200 baud
+         if (DS2480B_ChangeBaud(MAX_BAUD) == MAX_BAUD)
+         {
+            ds2480_state_t.USpeed = SPEEDSEL_OD;
+            rt = TRUE;
+         }
+
+      }
+      else if (new_speed == MODE_NORMAL)
+      {
+         // else normal so set to 9600 baud
+         if (DS2480B_ChangeBaud(PARMSET_9600) == PARMSET_9600)
+         {
+            ds2480_state_t.USpeed = SPEEDSEL_FLEX;
+            rt = TRUE;
+         }
+
+      }
+
+      // if baud rate is set correctly then change DS2480B speed
+      if (rt)
+      {
+         // check for correct mode
+         if (ds2480_state_t.UMode != MODSEL_COMMAND)
+         {
+            ds2480_state_t.UMode = MODSEL_COMMAND;
+            sendpacket[sendlen++] = MODE_COMMAND;
+         }
+
+         // proceed to set the DS2480B communication speed
+         sendpacket[sendlen++] = CMD_COMM | FUNCTSEL_SEARCHOFF | ds2480_state_t.USpeed;
+
+         // send the packet
+         if (uart_send(UART_NUM_0,sendpacket,sendlen))
+         {
+            rt = FALSE;
+            // lost communication with DS2480B then reset
+            DS2480B_Detect();
+         }
+      }
+
+   }
+
+   // return the current speed
+   return (ds2480_state_t.USpeed == SPEEDSEL_OD) ? MODE_OVERDRIVE : MODE_NORMAL;
+}
 
 //--------------------------------------------------------------------------
 // Set the 1-Wire Net line level.  The values for new_level are
@@ -864,12 +742,12 @@ int OWLevel(int new_level)
     unsigned char docheck = FALSE;
 
    // check if need to change level
-   if (new_level != ULevel)
+   if (new_level != ds2480_state_t.ULevel)
    {
       // check for correct mode
-      if (UMode != MODSEL_COMMAND)
+      if (ds2480_state_t.UMode != MODSEL_COMMAND)
       {
-         UMode = MODSEL_COMMAND;
+         ds2480_state_t.UMode = MODSEL_COMMAND;
          sendpacket[sendlen++] = MODE_COMMAND;
       }
       
@@ -877,7 +755,7 @@ int OWLevel(int new_level)
       if (new_level == MODE_NORMAL)
       {
          // check for disable strong pullup step
-         if (ULevel == MODE_STRONG5){
+         if (ds2480_state_t.ULevel == MODE_STRONG5){
             docheck = TRUE;
          }
 
@@ -899,7 +777,7 @@ int OWLevel(int new_level)
             if(2 == uart_read(UART_NUM_0,readbuffer,2,10)){
                 if(((readbuffer[0] & 0xE0) == 0xE0) && ((readbuffer[1] & 0xE0) == 0xE0)){
                     rt=TRUE;
-                    ULevel = MODE_NORMAL;
+                    ds2480_state_t.ULevel = MODE_NORMAL;
                     
                 }
                 
@@ -921,7 +799,7 @@ int OWLevel(int new_level)
          if(0 == uart_send(UART_NUM_0,sendpacket,sendlen)){
             if(1 == uart_read(UART_NUM_0,readbuffer,1,10)){
                 if((readbuffer[0] & 0x81) == 0){
-                    ULevel = new_level;
+                    ds2480_state_t.ULevel = new_level;
                     rt=TRUE;
                     
                 }
@@ -937,7 +815,7 @@ int OWLevel(int new_level)
    }
 
    // return the current level
-   return ULevel;
+   return ds2480_state_t.ULevel;
 }
 
 //--------------------------------------------------------------------------
@@ -955,9 +833,9 @@ int OWProgramPulse(void)
     OWLevel(MODE_NORMAL);
 
 // check for correct mode
-    if (UMode != MODSEL_COMMAND)
+    if (ds2480_state_t.UMode != MODSEL_COMMAND)
     {
-      UMode = MODSEL_COMMAND;
+      ds2480_state_t.UMode = MODSEL_COMMAND;
       sendpacket[sendlen++] = MODE_COMMAND;
     }
 
@@ -972,10 +850,10 @@ int OWProgramPulse(void)
     uart_tx_flush(UART_NUM_0);
 
 // send the packet
-   if (uart_write(sendpacket,sendlen))
+   if (0 == uart_send(UART_NUM_0,sendpacket,sendlen))
    {
 // read back the 2 byte response
-      if (uart_read(UART_NUM_0,readbuffer,2,1) == 2)
+      if (2 == uart_read(UART_NUM_0,readbuffer,2,1))
       {
          // check response byte
          if (((readbuffer[0] | CMD_CONFIG) ==
@@ -1012,9 +890,9 @@ int OWWriteBytePower(int sendbyte)
     unsigned char i, temp_byte;
 
     // check for correct mode
-    if (UMode != MODSEL_COMMAND)
+    if (ds2480_state_t.UMode != MODSEL_COMMAND)
     {
-        UMode = MODSEL_COMMAND;
+        ds2480_state_t.UMode = MODSEL_COMMAND;
         sendpacket[sendlen++] = MODE_COMMAND;
     }
 
@@ -1028,7 +906,7 @@ int OWWriteBytePower(int sendbyte)
     for (i = 0; i < 8; i++)
     {
       sendpacket[sendlen++] = ((temp_byte & 0x01) ? BITPOL_ONE : BITPOL_ZERO)
-                              | CMD_COMM | FUNCTSEL_BIT | USpeed |
+                              | CMD_COMM | FUNCTSEL_BIT | ds2480_state_t.USpeed |
                               ((i == 7) ? PRIME5V_TRUE : PRIME5V_FALSE);
       temp_byte >>= 1;
     }
@@ -1047,7 +925,7 @@ int OWWriteBytePower(int sendbyte)
          if ((readbuffer[0] & 0x81) == 0)
          {
             // indicate the port is now at power delivery
-            ULevel = MODE_STRONG5;
+            ds2480_state_t.ULevel = MODE_STRONG5;
 
             // reconstruct the echo byte
             temp_byte = 0; 
@@ -1091,9 +969,9 @@ int OWReadBitPower(int applyPowerResponse)
     unsigned char rt=FALSE;
 
     // check for correct mode
-    if (UMode != MODSEL_COMMAND)
+    if (ds2480_state_t.UMode != MODSEL_COMMAND)
     {
-        UMode = MODSEL_COMMAND;
+        ds2480_state_t.UMode = MODSEL_COMMAND;
         sendpacket[sendlen++] = MODE_COMMAND;
     }
 
@@ -1102,7 +980,7 @@ int OWReadBitPower(int applyPowerResponse)
 
     // enabling the strong-pullup after bit
     sendpacket[sendlen++] = BITPOL_ONE 
-                           | CMD_COMM | FUNCTSEL_BIT | USpeed |
+                           | CMD_COMM | FUNCTSEL_BIT | ds2480_state_t.USpeed |
                            PRIME5V_TRUE;
     // flush the buffers
     uart_tx_flush(UART_NUM_0);
@@ -1115,10 +993,10 @@ int OWReadBitPower(int applyPowerResponse)
       if (2 == uart_read(UART_NUM_0,readbuffer,2,10))
       {
          // check response to duration set
-         if ((readbuffer[0] & 0x81) == 0)
+         if ((0 == (readbuffer[0] & 0x81)))
          {
             // indicate the port is now at power delivery
-            ULevel = MODE_STRONG5;
+            ds2480_state_t.ULevel = MODE_STRONG5;
 
             // check the response bit
             if ((readbuffer[1] & 0x01) == applyPowerResponse){
@@ -1170,9 +1048,8 @@ unsigned char docrc8(unsigned char value)
 {
    // See Application Note 27
    
-   // TEST BUILD
-   crc8 = dscrc_table[crc8 ^ value];
-   return crc8;
+    search_device_t.crc8 = dscrc_table[search_device_t.crc8 ^ value];
+   return search_device_t.crc8;
 }
 
 //---------------------------------------------------------------------------
@@ -1191,13 +1068,13 @@ int DS2480B_Detect(void)
    uint8_t  sendlen=0;
 
    // reset modes
-   UMode = MODSEL_COMMAND;
-   UBaud = PARMSET_9600;
-   USpeed = SPEEDSEL_FLEX;
+   ds2480_state_t.UMode = MODSEL_COMMAND;
+   ds2480_state_t.UBaud = PARMSET_9600;
+   ds2480_state_t.USpeed = SPEEDSEL_FLEX;
 
-   PRINT("detect start:%s\r\n",__FUNCTION__);
+//   PRINT("detect start:%s\r\n",__FUNCTION__);
    // set the baud rate to 9600
-//   change_baud_rate(UBaud);
+//   change_baud_rate(ds2480_state_t.UBaud);
 
    // send a break to reset the DS2480B
    uart_send_break(UART_NUM_0,10);
@@ -1228,7 +1105,7 @@ int DS2480B_Detect(void)
    sendpacket[sendlen++] = CMD_CONFIG | PARMSEL_PARMREAD | (PARMSEL_BAUDRATE >> 3);
 
    // also do 1 bit operation (to test 1-Wire block)
-   sendpacket[sendlen++] = CMD_COMM | FUNCTSEL_BIT | UBaud | BITPOL_ONE;
+   sendpacket[sendlen++] = CMD_COMM | FUNCTSEL_BIT | ds2480_state_t.UBaud | BITPOL_ONE;
 
 //   // flush the buffers
 //   FlushCOM();
@@ -1244,9 +1121,9 @@ int DS2480B_Detect(void)
             LOG_DEBUG(TAG, "%d bytes read from search:", 5);
             log_buffer_hex(TAG, readbuffer, 5, LOG_LEVEL_INFO); 
             if (((readbuffer[3] & 0xF1) == 0x00) &&
-             ((readbuffer[3] & 0x0E) == UBaud) &&
+             ((readbuffer[3] & 0x0E) == ds2480_state_t.UBaud) &&
              ((readbuffer[4] & 0xF0) == 0x90) &&
-             ((readbuffer[4] & 0x0C) == UBaud)){
+             ((readbuffer[4] & 0x0C) == ds2480_state_t.UBaud)){
                 return TRUE;
             }
 
@@ -1258,7 +1135,7 @@ int DS2480B_Detect(void)
        return FALSE;
    }
    return 0;
-   PRINT("detect finish:%s\r\n",__FUNCTION__);
+//   PRINT("detect finish:%s\r\n",__FUNCTION__);
 }
 
 //---------------------------------------------------------------------------
@@ -1279,22 +1156,21 @@ int DS2480B_ChangeBaud(unsigned char newbaud)
    unsigned char sendlen=0,sendlen2=0;
 
     //see if diffenent then current baud rate
-   if (UBaud == newbaud){
-        return UBaud;
+   if (ds2480_state_t.UBaud == newbaud){
+        return ds2480_state_t.UBaud;
    }else
    {
 //       build the command packet
 //       check for correct mode
-        if (UMode != MODSEL_COMMAND)
+        if (ds2480_state_t.UMode != MODSEL_COMMAND)
         {
-         UMode = MODSEL_COMMAND;
+         ds2480_state_t.UMode = MODSEL_COMMAND;
          sendpacket[sendlen++] = MODE_COMMAND;
         }
 //       build the command
         sendpacket[sendlen++] = CMD_CONFIG | PARMSEL_BAUDRATE | newbaud;
 
 //    flush the buffers
-//      FlushCOM();
         uart_tx_flush(UART_NUM_0);
         uart_rx_flush(UART_NUM_0);
 
@@ -1310,7 +1186,7 @@ int DS2480B_ChangeBaud(unsigned char newbaud)
 //            SetBaudCOM(newbaud);
             uart_set_baudrate(UART_NUM_0,newbaud);
 
-            UBaud = newbaud;
+            ds2480_state_t.UBaud = newbaud;
 
 //          wait for things to settle
             DelayMs(5);
@@ -1343,10 +1219,45 @@ int DS2480B_ChangeBaud(unsigned char newbaud)
       DS2480B_Detect();
    }
 
-   return UBaud;
+   return ds2480_state_t.UBaud;
 }
 
+int find_device(){
+    volatile int i;
+    volatile int cnt = 0;
+    volatile int rslt =0;
 
 
+    PRINT("\nFIND ALL\r\n");
+
+    rslt = OWFirst();
+    while (rslt)
+    {
+      // print device found
+      
+          for (i = 0; i < 8; i++){
+             PRINT("%02X ", search_device_t.ROM_NO[i]);
+          }
+          PRINT("序号为： %d\r\n",++cnt);
+          
+          memcpy(device_t.ROMID[cnt-1],search_device_t.ROM_NO,sizeof(search_device_t.ROM_NO));
+//          for(int j = 0; j < 8; j++){
+//              PRINT("device_t.ROMID:%2x \r\n",(unsigned int)device_t.ROMID[cnt-1][j]);
+//          }
+          LOG_DEBUG(TAG, "%d bytes send from  device_t.ROMID[cnt-1]:", 8);
+          log_buffer_hex(TAG, device_t.ROMID[cnt-1], 8, LOG_LEVEL_INFO);
+          
+           
+      rslt = OWNext();
+    }
+    return cnt;
+}
+
+int find_device_config(){
+    uint8_t i = 0;
+    i = find_device();
+    PRINT("总线上设备个数为：%d\r\n",i);
+    return 0;
+}
 
 

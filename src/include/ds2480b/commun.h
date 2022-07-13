@@ -7,7 +7,7 @@
 // misc utility functions
 
 int bitacc(int op, int state, int loc, unsigned char *buf);
-int find_device();
+
 
 
 #endif /* SRC_INCLUDE_COMMUN_H_ */

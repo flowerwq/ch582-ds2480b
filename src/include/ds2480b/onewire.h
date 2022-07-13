@@ -33,7 +33,33 @@ int DS2480B_ChangeBaud(unsigned char newbaud);
 
 
 int onewire_search();
+int find_device();
+int find_device_config();
 
+typedef struct{
+    int LastDiscrepancy;
+    int LastFamilyDiscrepancy;
+    int LastDeviceFlag;
+    unsigned char crc8;
+    unsigned char ROM_NO[8];
+}search_device;
+
+typedef struct{
+    // DS2480B state
+    int ULevel; // 1-Wire level
+    int UBaud;  // baud rate
+    int UMode;  // command or data mode state
+    int USpeed; // 1-Wire communication speed
+    int ALARM_RESET_COMPLIANCE; // flag for DS1994/DS2404 'special' reset
+}ds2480_state;
+
+struct dev_slave{
+    device_type_t type;
+    uint8_t ROMID[MAXNUM_SWITCH_DEVICE_OUT][8];
+};
+
+
+struct dev_slave device_t;
 
 
 
