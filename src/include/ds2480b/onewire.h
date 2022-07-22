@@ -2,6 +2,7 @@
 #define SRC_INCLUDE_ONEWIRE_H_
 #include <stdbool.h>
 #include "CH58x_common.h"
+#include "ds2480b/uart-ds2480.h"
 // Basic 1-Wire functions
 bool  OWReset();
 unsigned char OWTouchBit(unsigned char sendbit);

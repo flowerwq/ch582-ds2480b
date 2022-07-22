@@ -116,7 +116,8 @@ unsigned char OWReadBit(void)
 
 static int OWRead2Bits()
 {
-	uint8_t i, dq,data = 0;
+	uint8_t i,data = 0;
+	uint8_t dq = 0;
 	for(i=0; i<2; i++)
 	{
 	    data = data << 1;
@@ -285,7 +286,7 @@ int OWBlock(unsigned char *tran_buf, int tran_len)
 {
    uint8_t sendpacket[320] = {0};
    uint8_t sendlen=0;
-   uint8_t pos;
+   uint8_t pos = 0;
 
    // check for a block too big
    if (tran_len > 160){

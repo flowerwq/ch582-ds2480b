@@ -52,7 +52,7 @@ void OLED_WR_Byte(uint8_t dat,uint8_t cmd)
 	}else {
 	  OLED_DC_Clr();
 	}
-	OLED_CS_Clr();
+//	OLED_CS_Clr();
 	for(i=0;i<8;i++)
 	{			  
 		OLED_SCL_Clr();
@@ -64,7 +64,7 @@ void OLED_WR_Byte(uint8_t dat,uint8_t cmd)
 		OLED_SCL_Set();
 		dat<<=1;   
 	}				 		  
-	OLED_CS_Set();
+//	OLED_CS_Set();
 	OLED_DC_Set();   	  
 }
 
@@ -372,43 +372,43 @@ void OLED_ShowNum(uint8_t x, uint8_t y, uint32_t num, uint8_t len,
 //x,y:起点坐标
 //num:汉字对应的序号
 //mode:0,反色显示;1,正常显示
-//void OLED_ShowChinese(uint8_t x, uint8_t y, uint8_t num, uint8_t size1, 
-//	uint8_t mode)
-//{
-//	uint8_t m, temp;
-//	uint8_t x0 = x, y0 = y;
-//	uint16_t i, size3 = (size1 / 8 + ((size1 % 8) ? 1 : 0)) * size1;  //得到字体一个字符对应点阵集所占的字节数
-//	for(i = 0; i < size3; i++){
-//		if(size1 == 16){
-//			temp = Hzk1[num][i];//调用16*16字体
-//		}else if(size1 == 24){
-//			temp = Hzk2[num][i];//调用24*24字体
-//		}
-//		else if(size1 == 32){
-//			temp=Hzk3[num][i];//调用32*32字体
-//		}
-//		else if(size1 == 64){
-//			temp = Hzk4[num][i];//调用64*64字体
-//		}else {
-//			return;
-//		}
-//		for(m = 0; m < 8; m++){
-//			if(temp & 0x01){
-//				OLED_DrawPoint(x, y, mode);
-//			}else {
-//				OLED_DrawPoint(x, y, !mode);
-//			}
-//			temp >>= 1;
-//			y++;
-//		}
-//		x++;
-//		if((x - x0) == size1){
-//			x = x0;
-//			y0 = y0 + 8;
-//		}
-//		y = y0;
-//	}
-//}
+void OLED_ShowChinese(uint8_t x, uint8_t y, uint8_t num, uint8_t size1, 
+	uint8_t mode)
+{
+	uint8_t m, temp;
+	uint8_t x0 = x, y0 = y;
+	uint16_t i, size3 = (size1 / 8 + ((size1 % 8) ? 1 : 0)) * size1;  //得到字体一个字符对应点阵集所占的字节数
+	for(i = 0; i < size3; i++){
+		if(size1 == 16){
+			temp = Hzk1[num][i];//调用16*16字体
+		}else if(size1 == 24){
+			temp = Hzk2[num][i];//调用24*24字体
+		}
+		else if(size1 == 32){
+			temp=Hzk3[num][i];//调用32*32字体
+		}
+		else if(size1 == 64){
+			temp = Hzk4[num][i];//调用64*64字体
+		}else {
+			return;
+		}
+		for(m = 0; m < 8; m++){
+			if(temp & 0x01){
+				OLED_DrawPoint(x, y, mode);
+			}else {
+				OLED_DrawPoint(x, y, !mode);
+			}
+			temp >>= 1;
+			y++;
+		}
+		x++;
+		if((x - x0) == size1){
+			x = x0;
+			y0 = y0 + 8;
+		}
+		y = y0;
+	}
+}
 
 //num 显示汉字的个数
 //space 每一遍显示的间隔
@@ -485,7 +485,7 @@ void OLED_io_init(){
 	OLED_SCL_INIT();
 	OLED_SDA_INIT();
 	OLED_RES_INIT();
-	OLED_CS_INIT();
+//	OLED_CS_INIT();
 	OLED_DC_INIT();
 }
 
@@ -493,6 +493,7 @@ void OLED_Init(void)
 {
 	OLED_io_init();
 	OLED_RES_Clr();
+    WWDG_SetCounter(0);
 	DelayMs(200);
 	OLED_RES_Set();
 	

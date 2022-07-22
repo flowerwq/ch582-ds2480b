@@ -65,5 +65,7 @@ int cfg_get_mb_addr(uint8_t *result);
 int cfg_update_mb_addr(uint8_t val);
 int cfg_get_mb_uart(cfg_uart_t *result);
 int cfg_update_mb_uart(cfg_uart_t *val);
+int cfg_get_sn(char *out);
+int cfg_update_sn(char *sn);
 
 #endif

@@ -70,7 +70,7 @@ uint16_t modbus_reg_get(mb_reg_addr_t addr)
 /*
  *@desc 获取modbus寄存器实际内存地址，仅用于读取数据，注意越界
  */
-const uint8_t *modbus_reg_buf_addr(mb_reg_addr_t addr){
+uint16_t *modbus_reg_buf_addr(mb_reg_addr_t addr){
 	int i = 0;
 	int reg_idx = 0;
 	for (i = 0; i < ARRAY_SIZE(mb_reg_segs); i++){
@@ -78,7 +78,7 @@ const uint8_t *modbus_reg_buf_addr(mb_reg_addr_t addr){
 			addr < mb_reg_segs[i].addr_start + mb_reg_segs[i].len)
 		{
 			reg_idx = addr - mb_reg_segs[i].addr_start;
-			return (const uint8_t *)&mb_reg_segs[i].content[reg_idx];
+			return &mb_reg_segs[i].content[reg_idx];
 		}
 	}
 
@@ -174,6 +174,13 @@ ModbusError modbus_reg_callback(void *ctx,
 			if (!modbus_reg_w_check(args->index, sctx)){
 				return MODBUS_ERROR_INDEX;
 			}
+			if (sctx && sctx->callback.before_reg_write){
+				if (sctx->callback.before_reg_write(args->index, args->value)){
+					out->exceptionCode = MODBUS_EXCEP_ILLEGAL_VALUE;
+					return MODBUS_ERROR_VALUE;
+					break;
+				}
+			}
 			return MODBUS_OK;
 		}else{
 			return MODBUS_ERROR_FUNCTION;
@@ -181,12 +188,7 @@ ModbusError modbus_reg_callback(void *ctx,
 		break;
 	case MODBUS_REGQ_W:
 		if (MODBUS_HOLDING_REGISTER == args->type){
-			if (sctx && sctx->callback.before_reg_write)
-			{
-				if (sctx->callback.before_reg_write(args->index, args->value)){
-					break;
-				}
-			}
+			
 			if (0 != modbus_reg_write(args->index, args->value)){
 				break;
 			}
@@ -202,12 +204,25 @@ ModbusError modbus_reg_callback(void *ctx,
 }
 
 void modbus_reg_update_uid(const uint8_t *uid, uint16_t len){
-	uint8_t *buf = (uint8_t *)(mb_ro_regs + MB_REG_ADDR_UID_7);
-	uint16_t maxlen = (MB_REG_ADDR_UID_0 - MB_REG_ADDR_UID_7 + 1) * 2;
-	if (len < maxlen){
-		buf += maxlen - len;
+	uint16_t *buf = modbus_reg_buf_addr(MB_REG_ADDR_UID_7);
+	int i = 0;
+	uint16_t maxlen = MB_REG_ADDR_UID_0 - MB_REG_ADDR_UID_7 + 1;
+	uint16_t bytes_remain = len;
+	if (len <= 0){
+		return;
 	}
-	memcpy(buf, uid, MIN(len, maxlen));
+	for(i = 0; i < maxlen; i++){
+		buf[i] = uid[i * 2] << 8;
+		bytes_remain --;
+		if (!bytes_remain){
+			break;
+		}
+		buf[i] += uid[i * 2 + 1];
+		bytes_remain --;
+		if (!bytes_remain){
+			break;
+		}
+	}
 }
 
 void modbus_regs_init(){

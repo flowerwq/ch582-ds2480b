@@ -61,5 +61,6 @@ void modbus_deinit();
 void modbus_frame_check();
 void modbus_run();
 int modbus_sa_ctrl(int enable);
+void modbus_reload();
 
 #endif

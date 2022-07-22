@@ -11,37 +11,37 @@
 #define OLED_Y_VALID(y)	((y) >= 0 && (y) < OLED_Y_MAX)
 
 //-----------------OLED端口定义---------------- 
-#define OLED_SCL_INIT()	{GPIOB_ModeCfg(GPIO_Pin_0, GPIO_ModeOut_PP_20mA);}
-#define OLED_SCL_Clr() GPIOB_ResetBits(GPIO_Pin_0)//SCL
-#define OLED_SCL_Set() GPIOB_SetBits(GPIO_Pin_0)
+#define OLED_SCL_INIT() {GPIOA_ModeCfg(GPIO_Pin_0, GPIO_ModeOut_PP_20mA);}
+#define OLED_SCL_Clr() GPIOA_ResetBits(GPIO_Pin_0)//SCL
+#define OLED_SCL_Set() GPIOA_SetBits(GPIO_Pin_0)
+    
+#define OLED_SDA_INIT() {\
+            GPIOA_ModeCfg(GPIO_Pin_1, GPIO_ModeOut_PP_20mA);\
+            GPIOA_SetBits(GPIO_Pin_1);\
+        }
+#define OLED_SDA_Clr() GPIOA_ResetBits(GPIO_Pin_1)//SDAA
+#define OLED_SDA_Set() GPIOA_SetBits(GPIO_Pin_1)
+    
+#define OLED_RES_INIT() {\
+            GPIOB_ModeCfg(GPIO_Pin_20, GPIO_ModeOut_PP_20mA);\
+            GPIOB_SetBits(GPIO_Pin_20);\
+        }
+#define OLED_RES_Clr() GPIOB_ResetBits(GPIO_Pin_20)//RES
+#define OLED_RES_Set() GPIOB_SetBits(GPIO_Pin_20)
+    
+#define OLED_DC_INIT()  {\
+            GPIOB_ModeCfg(GPIO_Pin_19, GPIO_ModeOut_PP_20mA);\
+            GPIOB_SetBits(GPIO_Pin_19);\
+        }
+#define OLED_DC_Clr()  GPIOB_ResetBits(GPIO_Pin_19)//DC
+#define OLED_DC_Set()  GPIOB_SetBits(GPIO_Pin_19)
+    
+    
+#define OLED_CT_INIT()  {\
+            GPIOB_ModeCfg(GPIO_Pin_2, GPIO_ModeOut_PP_5mA);\
+        }
+#define OLED_CT()  GPIOB_ResetBits(GPIO_Pin_2);
 
-#define OLED_SDA_INIT()	{\
-	GPIOB_ModeCfg(GPIO_Pin_1, GPIO_ModeOut_PP_20mA);\
-	GPIOB_SetBits(GPIO_Pin_1);\
-}
-#define OLED_SDA_Clr() GPIOB_ResetBits(GPIO_Pin_1)//SDA
-#define OLED_SDA_Set() GPIOB_SetBits(GPIO_Pin_1)
-
-#define OLED_RES_INIT()	{\
-	GPIOB_ModeCfg(GPIO_Pin_2, GPIO_ModeOut_PP_20mA);\
-	GPIOB_SetBits(GPIO_Pin_2);\
-}
-#define OLED_RES_Clr() GPIOB_ResetBits(GPIO_Pin_2)//RES
-#define OLED_RES_Set() GPIOB_SetBits(GPIO_Pin_2)
-
-#define OLED_DC_INIT()	{\
-	GPIOB_ModeCfg(GPIO_Pin_3, GPIO_ModeOut_PP_20mA);\
-	GPIOB_SetBits(GPIO_Pin_3);\
-}
-#define OLED_DC_Clr()  GPIOB_ResetBits(GPIO_Pin_3)//DC
-#define OLED_DC_Set()  GPIOB_SetBits(GPIO_Pin_3)
-
-#define OLED_CS_INIT()	{\
-	GPIOB_ModeCfg(GPIO_Pin_4, GPIO_ModeOut_PP_20mA);\
-	GPIOB_SetBits(GPIO_Pin_4);\
-} 		     
-#define OLED_CS_Clr()  GPIOB_ResetBits(GPIO_Pin_4)//CS
-#define OLED_CS_Set()  GPIOB_SetBits(GPIO_Pin_4)
 
 #define OLED_CMD  0	//写命令
 #define OLED_DATA 1	//写数据

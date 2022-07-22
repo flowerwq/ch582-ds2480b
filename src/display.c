@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-
+#include "oled.h"
 #include <stdarg.h>
 
 #include "display.h"
@@ -104,3 +104,13 @@ int display_printline(int line, char *fmt, ...){
 	display_string(line, buf);
 	return 0;
 }
+
+void oled_seneor_flag(){
+    uint8_t k=':';
+	OLED_ShowChinese(0, 16, 0,16, 1);
+	OLED_ShowChinese(18, 16, 1,16, 1);
+	OLED_ShowChinese(36, 16, 2,16, 1);
+	OLED_ShowChinese(54, 16,3,16, 1);
+	OLED_ShowChar(72, 16,k, 16, 1);		
+}
+

@@ -72,7 +72,7 @@ ModbusError modbus_di_callback(void *ctx,
 	const ModbusRegisterCallbackArgs *args,
 	ModbusRegisterCallbackResult *out)
 {
-	mb_slave_ctx_t *sctx = (mb_slave_ctx_t *)ctx;
+//	mb_slave_ctx_t *sctx = (mb_slave_ctx_t *)ctx;
 	switch(args->query){
 		case MODBUS_REGQ_R_CHECK:
 			if(!modbus_di_r_check(args->index)){

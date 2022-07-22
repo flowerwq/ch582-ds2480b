@@ -17,5 +17,7 @@
 int display_init();
 int display_string(int line, char *str);
 int display_printline(int line, char *fmt, ...);
+void oled_seneor_flag();
+
 
 #endif

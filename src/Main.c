@@ -20,11 +20,9 @@
 #include "uid.h"
 #include "sensor.h"
 #include "uart.h"
-#include "ds2480b/commun.h"
-#include "ds2480b/uart-ds2480.h"
-#include "ds2480b/common.h"
+#include "utils.h"
 #include "ds2480b/onewire.h"
-
+#define TAG "MAIN"
 /*********************************************************************
  * @fn      main
  *
@@ -33,18 +31,20 @@
  * @return  none
  */
 
-int uuid_dump(){
-	uint8_t uuid[10] = {0};
+static int uuid_dump(){
+	uint8_t uuid[32] = {0};
 	int i = 0;
 	GET_UNIQUE_ID(uuid);
-	PRINT("deviceid:");
+	PRINT("flashid:");
 	for (i = 0; i < 8; i++){
 		PRINT("%02x", uuid[i]);
 	}
 	PRINT("\r\n");
+	cfg_get_sn((char *)uuid);
+	PRINT("sn:%s\r\n", uuid);
 	return 0;
 }
-int reset_dump(){
+static int reset_dump(){
 	SYS_ResetStaTypeDef rst = SYS_GetLastResetSta();
 	PRINT("rst(");
 	switch(rst){
@@ -77,50 +77,53 @@ int reset_dump(){
 	return 0;
 }
 
+static int debug_init(){
+	uart_config_t uart_cfg = UART_DEFAULT_CONFIG();
+#if DEBUG == Debug_UART1
+	uart_init(UART_NUM_1, &uart_cfg);
+#endif
+	PRINT("\r\n");
+	return 0;
+}
+
 int main()
 {
-    uint32_t appversion;
 	worktime_t worktime = 0;
 	char buf[DISPLAY_LINE_LEN + 1];
+    WWDG_ResetCfg(ENABLE);
+    
+	WWDG_SetCounter(0);
     SetSysClock(CLK_SOURCE_PLL_60MHz);
 	worktime_init();
-	
-    /* 配置串口1： */
-	uart_config_t cfg = UART_DEFAULT_CONFIG();
-	uart_init(UART_NUM_1, &cfg);
+    debug_init();
 
 	reset_dump();
 	PRINT("app start ...\r\n");
-	uuid_dump();
 
-    
-
+	WWDG_SetCounter(0);
 	OLED_Init();
-	OLED_ShowPicture(32, 0, 64, 64, (uint8_t *)smail_64x64_1, 1);
+//	OLED_ShowPicture(32, 0, 64, 64, (uint8_t *)smail_64x64_1, 1);
+    oled_seneor_flag();
+
 	OLED_Refresh();
-	
+
+	WWDG_SetCounter(0);
 	display_init();
 	cfg_init();
+	uuid_dump();
 	sensor_init();
 
     DS2480B_Detect();    
     find_device_config();
 	while(worktime_since(worktime) < 1000){
+		WWDG_SetCounter(0);
 		__nop();
 	}
-	OLED_Clear();
-	//DISPLAY_PRINT("Boot:%s", CURRENT_VERSION_STR());
-//	if (upgrade_app_available()){
-//		appversion = upgrade_app_version();
-//		version_str(appversion, buf, DISPLAY_LINE_LEN);
-//		DISPLAY_PRINT("APP:%s", buf);
-//	}else{
-//		DISPLAY_PRINT("APP:none");
-//	}
+	//OLED_Clear();
 	PRINT("main loop start ...\r\n");
     while(1){
-		OLED_Refresh();
-		
+		WWDG_SetCounter(0);
+//		OLED_Refresh();
 //		if (worktime_since(worktime) >= 1000){
 //			worktime = worktime_get();
 //			if ((worktime / 1000) % 2){
@@ -130,6 +133,12 @@ int main()
 //			}
 //		}
 		sensor_run();
+		OLED_Refresh();
+		int ret = uart_read(UART_NUM_1, (uint8_t *)buf, sizeof(buf), 100);
+		if (ret > 0){
+			LOG_DEBUG(TAG, "%d bytes read form uart1", ret);
+			log_buffer_hex(TAG, buf,ret, LOG_LEVEL_DEBUG);
+		}
 	}
 }
 

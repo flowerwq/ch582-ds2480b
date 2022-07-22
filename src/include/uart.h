@@ -59,9 +59,7 @@ int uart_set_baudrate(uart_num_t num, uint32_t baudrate);
 int uart_set_parity(uart_num_t num, uart_par_t parity);
 int uart_set_databits(uart_num_t num, uint8_t databits);
 int uart_set_stopbits(uart_num_t num, uart_sb_t sb);
-
-
-
+int uart_deinit(uart_num_t num);
 int uart_init(uart_num_t num, uart_config_t *config);
 int uart_send(uart_num_t num, uint8_t *buf, uint32_t len);
 int uart_get_config(uart_num_t num, uart_config_t *config);

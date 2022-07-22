@@ -34,7 +34,7 @@ ModbusError modbus_ireg_callback(void *ctx,
 	const ModbusRegisterCallbackArgs *args,
 	ModbusRegisterCallbackResult *out)
 {
-	mb_slave_ctx_t *sctx = (mb_slave_ctx_t *)ctx;
+//	mb_slave_ctx_t *sctx = (mb_slave_ctx_t *)ctx;
 	out->exceptionCode = MODBUS_EXCEP_NONE;
 	switch(args->query){
 		case MODBUS_REGQ_R_CHECK:

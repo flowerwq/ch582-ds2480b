@@ -169,7 +169,7 @@ int cfg_update_mb_addr(uint8_t val){
 	return 0;
 }
 
-int config_get_sn(char *out){
+int cfg_get_sn(char *out){
 	if (!cfg_is_init()){
 		LOG_ERROR(TAG, "%s:not init", __FUNCTION__);
 		return -1;
@@ -180,7 +180,7 @@ int config_get_sn(char *out){
 	return 0;
 }
 
-int config_update_sn(char *sn){
+int cfg_update_sn(char *sn){
 	int ret = 0;
 	if (!cfg_is_init()){
 		LOG_ERROR(TAG, "%s:not init", __FUNCTION__);

@@ -388,8 +388,8 @@ static int uart_io_init(uart_num_t num, uart_config_t * config){
 			ctx->pin_alter_mask);
 	}
 	if (config->rs485_en){
-//		gpio_set_direction(config->io_485en, GPIO_OUTPUT_PP_20mA);
-        gpio_set_direction(config->io_485en, GPIO_OUTPUT_PP_5mA);
+		gpio_set_direction(config->io_485en, GPIO_OUTPUT_PP_20mA);
+//        gpio_set_direction(config->io_485en, GPIO_OUTPUT_PP_5mA);
 
 		gpio_set_level(config->io_485en, !config->level_485tx);
 	}
@@ -548,6 +548,26 @@ int uart_init(uart_num_t num, uart_config_t * config){
 	}
 	memcpy(&uart_ctx[num].config, config, sizeof(uart_config_t));
 	uart_ctx[num].flag_init = 1;
+	return 0;
+fail:
+	return -1;
+}
+
+/**
+ * @brief deinitialize uart
+ * @param num uart number
+ * @return 0 - Success, (-1) - Error
+ */
+int uart_deinit(uart_num_t num){
+	if (!UART_NUM_VALID(num)){
+		LOG_ERROR(TAG, "invalid uart num");
+		goto fail;
+	}
+	uart_ctx_t *ctx = &uart_ctx[num];
+	PFIC_DisableIRQ(ctx->irq_num);
+	*ctx->regs.ier = BITS_SET(*ctx->regs.ier, RB_IER_RESET);
+	memset(&ctx->config, 0, sizeof(uart_config_t));
+	ctx->flag_init = 0;
 	return 0;
 fail:
 	return -1;

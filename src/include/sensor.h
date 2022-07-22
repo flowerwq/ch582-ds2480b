@@ -3,5 +3,6 @@
 
 int sensor_init();
 int sensor_run();
+//int modbus_reload();
 
 #endif

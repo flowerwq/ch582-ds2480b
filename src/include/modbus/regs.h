@@ -62,12 +62,14 @@ typedef enum mb_reg_addr{
 	MB_REG_ADDR_WARN_STATUS_15,
 	MB_REG_ADDR_WARN_RCD_MAX,
 
-	MB_REG_ADDR_RWA_BASE = 65500,
+	MB_REG_ADDR_RWA_BASE = 64000,
 	MB_REG_ADDR_MB_ADDR	= MB_REG_ADDR_RWA_BASE,
 	MB_REG_ADDR_BAUDRATE_H,
 	MB_REG_ADDR_BAUDRATE_L,
 	MB_REG_ADDR_ZB_ADDR_START,
 	MB_REG_ADDR_ZB_ADDR_END = MB_REG_ADDR_ZB_ADDR_START + 11,
+	MB_REG_ADDR_UID_BUF_START,
+	MB_REG_ADDR_UID_BUF_END = MB_REG_ADDR_UID_BUF_START + 7,
 	MB_REG_ADDR_RWA_MAX,
 
 	MB_REG_ADDR_TEST_BASE = 65530,
@@ -109,6 +111,6 @@ void modbus_reg_update_uid(const uint8_t *uid, uint16_t len);
 ModbusError modbus_reg_callback(void *ctx, 
 	const ModbusRegisterCallbackArgs *args,
 	ModbusRegisterCallbackResult *out);
-const uint8_t *modbus_reg_buf_addr(mb_reg_addr_t addr);
+uint16_t *modbus_reg_buf_addr(mb_reg_addr_t addr);
 
 #endif
